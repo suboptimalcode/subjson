@@ -270,6 +270,33 @@
   (doseq [[arr-src arr] arrays]
     (is (= (seq arr) (seq (SubJson/parse (LightStringReader. arr-src))))))
   (doseq [not-arr not-arrays]
-    (is (thrown? Exception (SubJson/parse (LightStringReader. not-arr))))
-    )
-  )
+    (is (thrown? Exception (SubJson/parse (LightStringReader. not-arr))))))
+
+;;
+;; Parsing objects
+;;
+
+;; Again, testing objects with nested objects is a bit tricky
+;; in the default building policy.
+(def objects {"{}" {}
+              "{\"\":1}" {"" 1}
+              "{\"\" :1}" {"" 1}
+              "{\"\": 1}" {"" 1}
+              "{\"\":1 }" {"" 1}
+              "{\"1\":1,\"2\":2}" {"1" 1 "2" 2}
+              "{\"1\":1 ,\"2\":2}" {"1" 1 "2" 2}
+              "{\"1\":1, \"2\":2}" {"1" 1 "2" 2}
+              "{\"1\" : 1 , \"2\" : 2}" {"1" 1 "2" 2}
+              "{\"null\":null, \"true\": true ,\"false\" :false}"
+              {"null" nil "true" true "false" false}
+              "{ } " {}
+              "{\"\":1} " {"" 1}})
+
+(def not-objects ["{" "}" "{1:1}" "{\"}" "{\"1\":}"
+                  "{\"1\" 1}" "{\"1\":1 \"2\":2}"])
+
+(deftest parse-test--object
+  (doseq [[obj-src obj] objects]
+    (is (= obj (SubJson/parse (LightStringReader. obj-src)))))
+  (doseq [not-obj not-objects]
+    (is (thrown? Exception (SubJson/parse (LightStringReader. not-obj))))))

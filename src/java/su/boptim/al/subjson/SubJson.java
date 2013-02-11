@@ -6,16 +6,14 @@ import java.util.HashMap;
 
 public class SubJson
 {
-    static final int STATE_OBJECT  = 0;
-    static final int STATE_ARRAY   = 1;
-    static final int STATE_STRING  = 2;
-    static final int STATE_NUMBER  = 3;
-    static final int STATE_BOOLEAN = 4;
-    static final int STATE_NULL    = 5;
-
-    static final int NEED_ANYTHING = 0;
-    static final int NEED_COMMA = 1;
-    static final int NEED_COLON = 2;
+    // JUMP POINTS -- see big comment in parse()
+    static final int LBL_PARSE_VALUE = 0;
+    static final int LBL_PARSE_ARRAY = 1;
+    static final int LBL_PA_STARTVALUE = 2;
+    static final int LBL_PA_PARSEDVALUE = 3;
+    static final int LBL_PARSE_OBJECT = 4;
+    static final int LBL_PO_STARTKV = 5;
+    static final int LBL_PO_PARSEDKV = 6;
     
     public static boolean isDigit(int rune) 
     {
@@ -160,31 +158,14 @@ public class SubJson
         } else if (top instanceof HashMap && newObj instanceof String) {
             stack.push(newObj); 
         } else if (top instanceof String) {
-            stack.push(newObj);
+            String key = (String)stack.pop();
+            HashMap<String,Object> topObj = (HashMap<String,Object>)stack.peek();
+            topObj.put(key, newObj);            
         } else {
             throw new IllegalArgumentException("Could not push the object " + newObj.toString()
                                                + " onto the JSON context stack when the top of the stack is " + top.toString());
         }
     }
-
-    /*
-      Calling this function indicates that the "in-progress" object on the top
-      of the stack is now "done," and should be processed in a way that
-      finalizes that and removes it from the top of the stack.
-     */
-    /*    public static Object stackPop(Stack stack)
-    {
-        Object top = stack.pop();
-
-        if (top instanceof ArrayList) {
-            return ((ArrayList)top).toArray();
-        } else if (top instanceof HashMap) {
-            
-            return top;
-        } else {
-            throw new IllegalArgumentException("Attempted to pop an invalid object off of the JSON context stack.");
-        }
-        }*/
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
     // and the LightReader must buffer at least one character for backwards
@@ -192,183 +173,257 @@ public class SubJson
     public static Object parse(LightReader jsonSrc) throws Exception
     {
         Stack stack = new Stack();
+        int currState = LBL_PARSE_VALUE; 
 
         int currRune = 0;
-        boolean needCommaBeforeValue = false; // To guarantee a comma is read first
-        boolean needKeyBeforeValue = false; // To guarantee a string + : is read first
-        boolean needValue = false;  // Have seen a key, need a value before obj close
+        
+        // Although null is a value we care about, we have written this so
+        // that if there is no valid value read, it will have errored, so
+        // (hopefully) latestValue is always the correct latest value.
+        Object latestValue = null;
 
         // JSON can basically nest arbitrarily deeply, so only break out the
         // functions that read terminals (null/true/false, numbers, and strings)!
         // Everything else, we'll do with an explicit stack structure in this
         // loop without growing the execution stack.
+
+        /*
+          Basically, we wish we could write the following code (more or less):
+
+          parseValue()                            // LBL_PARSE_VALUE:
+              case '[': parseArray();
+              case '{': parseObject();
+              default: return parsePrimitive();
+          
+          parseArray()                            // LBL_PARSE_ARRAY:
+              parse('[');
+              startvalue:                         // LBL_PA_STARTVALUE:
+              parseValue();
+              if (lookahead == ',')               // LBL_PA_PARSEDVALUE:
+                  parse(',');
+                  goto startvalue;
+              else
+                  parse(']');
+                  return newArray;
+
+           parseObject()                          // LBL_PARSE_OBJECT:
+               parse('{');
+               startkv:                           // LBL_PO_STARTKV:
+               parseString();
+               parse(':');
+               parseValue();
+               if (lookahead == ',')
+                   parse(',');
+                   goto startkv;
+               else
+                   parse('}');
+                   return newObject;
+
+           However, Java, of course, does not allow us to use goto, nor does it
+           let us have arbitrarily looping recursion (like the calls to 
+           parseValue() in parseArray() and parseObject()). Thus, we must 
+           manually manage the stack and simulate the gotos, and we do this in 
+           the big while loop with nested switch statements. This interpretation
+           should help reason about the loop; the outer switch is any point you
+           might jump to in the pseudocode above. Pushing something onto the stack
+           and 'break dispatch'ing is a function call. Popping off the stack and 
+           setting a new state is like a function return. 
+
+           I refer to these "set currState + break dispatch" as "calling" the 
+           "function" they are jumping to, to help annotate the code below.
+         */
         while (currRune != -1) {
-            currRune = jsonSrc.read();
+            dispatch:
+            switch (currState) {
+            case LBL_PARSE_VALUE:
+                currRune = jsonSrc.read();
 
-            // If we are expecting a specific thing, try to find it before
-            // parsing anything else.
-            if (needCommaBeforeValue) {
-                // Skip any whitespace
-                if (isWhitespace(currRune)) {
+                switch (currRune) {
+                    // whitespace
+                case 0x20: // space
+                case 0x09: // tab
+                case 0x0A: // linefeed
+                case 0x0D: // carriage return
                     skipWhitespace(jsonSrc);
-                    currRune = jsonSrc.read();
-                }
-                
-                if (currRune == ',') {
-                    needCommaBeforeValue = false;
-                    currRune = jsonSrc.read(); // Skip the comma, it's useless.
-                } else if (currRune == ']' || currRune == '}') {
-                    needCommaBeforeValue = false;
-                } else {
-                    throw new IllegalArgumentException("Invalid input, expected a comma.");
-                }
-            } else if (needKeyBeforeValue) {
-                // Skip any whitespace
-                if (isWhitespace(currRune)) {
-                    skipWhitespace(jsonSrc);
-                    currRune = jsonSrc.read();
-                }
+                    break dispatch; // Skip checking for value to insert.
+                    
+                    // null
+                case 'n': 
+                    jsonSrc.move(-1); // Undo the lookahead that let us know it was true.
+                    parseNull(jsonSrc);
 
-                if (currRune == '"') {
-                    jsonSrc.move(-1); // Go back one for the string read.
-                    String key = parseString(jsonSrc);
-                    skipWhitespace(jsonSrc); // Skip any whitespace after key.
-                    currRune = jsonSrc.read();
-
-                    if (currRune == ':') {
-                        currRune = jsonSrc.read(); // Move to the next character
-                        needValue = true;
-                        needKeyBeforeValue = false;
-                    } else {
-                        throw new IllegalArgumentException("Invalid input, expected a key.");
-                    }
-                }
-            }
-            
-            // Otherwise, we can handle pretty much any available value now.
-            switch (currRune) {
-                // whitespace
-            case 0x20: // space
-            case 0x09: // tab
-            case 0x0A: // linefeed
-            case 0x0D: // carriage return
-                skipWhitespace(jsonSrc);
-                break;
-                
-                // null
-            case 'n': 
-                jsonSrc.move(-1); // Undo the lookahead that let us know it was true.
-                parseNull(jsonSrc);
-                if (stack.empty()) {
-                    return null;
-                } else {
-                    if (isArray(stack.peek())) {
-                        needCommaBeforeValue = true;
-                    }
-                    stackPush(stack, null);
-                }
-                break;
-                
-                // true & false
-            case 't':
-            case 'f':
-                jsonSrc.move(-1); // Undo the lookahead that let us know it was true.
-                Object resultBool = parseBoolean(jsonSrc);
-                if (stack.empty()) {
-                    return resultBool;
-                } else {
-                    if (isArray(stack.peek())) {
-                        needCommaBeforeValue = true;
-                    }
-                    stackPush(stack, (Object)resultBool);
-                }
-                break;
-                
-                // Number
-            case '-':
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                jsonSrc.move(-1); // Undo the lookahead that told us this was a number.
-                Number resultNum = parseNumber(jsonSrc);
-                if (stack.empty()) {
-                    return resultNum;
-                } else {
-                    if (isArray(stack.peek())) {
-                        needCommaBeforeValue = true;
-                    }
-                    stackPush(stack, (Object)resultNum);
-                }
-                break;
-                
-                // String
-            case '"':
-                jsonSrc.move(-1);
-                String resultString = parseString(jsonSrc);
-                if (stack.empty()) {
-                    return resultString;
-                } else {
-                    if (isArray(stack.peek())) {
-                        needCommaBeforeValue = true;
-                    } else if (isObject(stack.peek())) {
-                        needCommaBeforeValue = true;
-                        needKeyBeforeValue = true;
-                        needValue = false;
-                    }
-                    stackPush(stack, (Object)resultString);
-                }
-                break;
-                
-                // Array
-            case '[':
-                startArray(stack);
-                break;
-            case ']':
-                Object resultArray = finishArray(stack);
-                if (stack.empty()) {
-                    return resultArray;
-                } else {
-                    stackPush(stack, (Object)resultArray);
-                }
-                break;
-
-                // Object
-            case '{':
-                startObject(stack);
-                needKeyBeforeValue = true;
-                break;
-            case '}':
-                if (needValue) {
-                    throw new IllegalArgumentException("Encountered the end of an object, but expected a value to match a key already parsed.");
-                }
-
-                Object resultObject = finishObject(stack);
-                if (stack.empty()) {
-                    return resultObject;
-                } else {
-                    stackPush(stack, (Object)resultObject);
-                }
-                break;
-                
-            case ',':
-                // We should only see a comma while reading an array or object.
-                if (!isArray(stack.peek()) && !isObject(stack.peek())) {
+                    latestValue = null;
+                    break; // Jump to cleanup code after inner switch.
+                    
+                    // true & false
+                case 't':
+                case 'f':
+                    jsonSrc.move(-1); // Undo the lookahead that let us know it was true.
+                    latestValue = parseBoolean(jsonSrc);
+                    break; // Jump to cleanup code after inner switch.
+                    
+                    // Number
+                case '-':
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    jsonSrc.move(-1); // Undo the lookahead that told us this was a number.
+                    latestValue = parseNumber(jsonSrc);
+                    break; // Jump to cleanup code after inner switch
+                    
+                    // String
+                case '"':
+                    jsonSrc.move(-1);
+                    latestValue = parseString(jsonSrc);
+                    break; // Jump to cleanup code after inner switch
+                    
+                    // Array
+                case '[':
+                    jsonSrc.move(-1); // Pushback for "parseArray()"
+                    currState = LBL_PARSE_ARRAY;
+                    break dispatch; // "Call" "parseArray()"
+                case ']':
+                    // In correct JSON we should only see this after a '[', which
+                    // will have "called" "parseArray()", so we shouldn't see this here.
+                    throw new IllegalArgumentException("Encountered unexpected ']'.");
+                    
+                    // Object
+                case '{':
+                    jsonSrc.move(-1); // Pushback for "parseObject()"
+                    currState = LBL_PARSE_OBJECT;
+                    break dispatch; // "Call" "parseObject()"
+                case '}':
+                    // In correct JSON we should only see this after a '{', which
+                    // will have "called" "parseObject()", so we shouldn't see this here.
+                    throw new IllegalArgumentException("Encountered unexpected '}'.");
+                    
+                case ',':
+                    // We should only see a comma while reading an array or object.
                     throw new IllegalArgumentException("Encountered a comma, but weren't reading an object or array.");
+                    
+                default:
+                    throw new IllegalArgumentException("Encountered invalid character in input.");
                 }
-                break;
-                
-            default:
-                throw new IllegalArgumentException("Encountered invalid character in input.");
+
+                // Having read a value, we need to figure out where to store it and
+                // where to "return" to.
+                if (stack.empty()) {
+                    return latestValue;
+                } else {
+                    if (isArray(stack.peek())) {
+                        // We had to parse an object while parsing an array
+                        currState = LBL_PA_PARSEDVALUE;
+                    } else if (isObject(stack.peek()) 
+                               || stack.peek() instanceof String) {
+                        currState = LBL_PO_PARSEDKV;
+                    }
+                    stackPush(stack, latestValue);
+                    break dispatch;
+                }
+
+                // "parseArray()" (see comment above)
+            case LBL_PARSE_ARRAY:
+                parseChar(jsonSrc, '[');
+                startArray(stack);
+            case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
+                skipWhitespace(jsonSrc);
+                currRune = jsonSrc.read();
+
+                // Need to check for empty array, where an attempt to read a 
+                // value would fail.
+                jsonSrc.move(-1); // Pushback for "parseValue()" or finish array.
+                if (currRune == -1) {
+                    throw new IllegalArgumentException("Reached EOF while parsing an array.");
+                } else if (currRune != ']') {
+                    currState = LBL_PARSE_VALUE; // "Call" "parseValue()"
+                    break dispatch;
+                }                     
+                // currRune == ']', so fall through to finish array
+            case LBL_PA_PARSEDVALUE:         // ... which will know to return here from stack top.
+                skipWhitespace(jsonSrc);
+                currRune = jsonSrc.read();
+                jsonSrc.move(-1); // Pushback for parseChar().
+                if (currRune == ',') {
+                    parseChar(jsonSrc, ',');
+                    currState = LBL_PA_STARTVALUE;
+                    break dispatch;
+                } else {
+                    parseChar(jsonSrc, ']');
+                    Object resultArray = finishArray(stack);
+                    // Now we need to check stack to figure out where to return to.
+                    if (stack.empty()) {
+                        return resultArray;
+                    } else {
+                        if (isArray(stack.peek())) {
+                            // We had to parse an array while parsing an array
+                            currState = LBL_PA_PARSEDVALUE;
+                        } else if (isObject(stack.peek()) 
+                                   || stack.peek() instanceof String) {
+                            currState = LBL_PO_PARSEDKV;
+                        }
+                        stackPush(stack, (Object)resultArray);
+                        break dispatch;
+                    }
+                }
+
+                // "parseObject()" (see comment above)
+            case LBL_PARSE_OBJECT:
+                parseChar(jsonSrc, '{');
+                startObject(stack);
+            case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
+                skipWhitespace(jsonSrc);
+                currRune = jsonSrc.read(); 
+
+                // Need to check for '}' in case of empty object. If so,
+                // fall through to PARSEDKV to finish object.
+                jsonSrc.move(-1); // Pushback for "parseValue()" or finish object.
+                if (currRune == -1) {
+                    throw new IllegalArgumentException("Reached EOF while parsing an object.");
+                } else if (currRune != '}') {
+                    String key = parseString(jsonSrc);
+                    stack.push(key);
+                    skipWhitespace(jsonSrc);
+                    parseChar(jsonSrc, ':');
+                    skipWhitespace(jsonSrc);
+                    currState = LBL_PARSE_VALUE; // "Call" "parseValue()"
+                    break dispatch;
+                }
+                // currRune == '}' so fall through to finish object
+            case LBL_PO_PARSEDKV:            // ... which will know to return here from stack top.
+                skipWhitespace(jsonSrc);
+                currRune = jsonSrc.read();
+                jsonSrc.move(-1); // Pushback for readChar().
+                if (currRune == ',') {
+                    parseChar(jsonSrc, ',');
+                    currState = LBL_PO_STARTKV;
+                    break dispatch;
+                } else {
+                    parseChar(jsonSrc, '}');
+                    Object resultObject = finishObject(stack);
+                    // Now we need to check stack to figure out where to return to.
+                    if (stack.empty()) {
+                        return resultObject;
+                    } else {
+                        if (isArray(stack.peek())) {
+                            // We had to parse an object while parsing an array
+                            currState = LBL_PA_PARSEDVALUE;
+                        } else if (isObject(stack.peek())
+                                   || stack.peek() instanceof String) {
+                            currState = LBL_PO_PARSEDKV;
+                        }
+                        stackPush(stack, (Object)resultObject);
+                        break dispatch;
+                    }
+                }
             }
-        }
-        
+        }   
         return stack.pop();
     }
 
@@ -394,6 +449,26 @@ public class SubJson
                 jsonSrc.move(-1);  // Undo the lookahead that was not whitespace.
                 return;
             }
+        }
+    }
+
+    /*
+      Given a LightReader, attempts to read the next character from it and check that
+      it is the character given as the second argument. If it is, it simply returns
+      and the LightReader will be on the next character after the one just read. 
+      Otherwise, throws a descriptive error.
+     */
+    private static void parseChar(LightReader jsonSrc, char theChar)
+    {
+        int currRune = jsonSrc.read();
+        if (currRune == theChar) {
+            return;
+        } else if (currRune == -1) {
+            throw new IllegalArgumentException("Read EOF when " + theChar 
+                                               + " was expected.");
+        } else {
+            throw new IllegalArgumentException("Read " + (char)currRune + " when "
+                                               + theChar + " was expected.");
         }
     }
 
