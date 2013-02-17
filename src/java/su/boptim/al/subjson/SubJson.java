@@ -60,111 +60,36 @@ public class SubJson
         return o instanceof HashMap<?,?>;
     }
 
-    public static void startArray(Stack stack)
+    public static Object startArray()
     {
-        stack.push(new ArrayList());
+        return new ArrayList();
     }
 
-    public static Object[] finishArray(Stack stack)
+    public static void arrayAppend(Object a, Object value)
     {
-        Object[] arr = ((ArrayList)stack.pop()).toArray();
-        
-        if (stack.empty()) {
-            // This array was the only thing we were reading, so just
-            // return it.
-            return arr;
-        } else {
-            // We need to examine the stack to see what to do.
-            Object top = stack.peek();
-            if (top instanceof ArrayList) {
-                // There's another ArrayList below us on the stack, so we should
-                // insert this array into that one.
-                ((ArrayList)top).add(arr);
-                return arr;
-            } else if (top instanceof String) {
-                // Only way a string gets on the stack is if an object is
-                // being read and its key has been read but not the 
-                // corresponding value. Now we have that value, so insert
-                // the KV pair into the object.
-                String key = (String)stack.pop();
-                HashMap obj = (HashMap)stack.peek();
-                obj.put(key, arr);
-                return arr;
-            } else {
-                throw new IllegalArgumentException("Attempted to finish an array that was above an illegal type on the stack.");
-            }
-        }
+        ArrayList<Object> arr = (ArrayList<Object>)a;
+        arr.add(value);
     }
 
-    public static void startObject(Stack stack)
+    public static Object finishArray(Object arr)
     {
-        stack.push(new HashMap());
+        return ((ArrayList<?>)arr).toArray();
     }
 
-    public static HashMap finishObject(Stack stack)
+    public static Object startObject()
     {
-        HashMap<?,?> obj = ((HashMap<?,?>)stack.pop());
-
-        if (stack.empty()) {
-            // This object was the only thing we were reading, so just
-            // return it.
-            return obj;
-        } else {
-            // We need to examine the stack to see what to do.
-            Object top = stack.peek();
-            if (top instanceof ArrayList) {
-                // There's an ArrayList below us on the stack, so we should
-                // insert this object into that one.
-                ((ArrayList)top).add(obj);
-                return obj;
-            } else if (top instanceof String) {
-                // Only way a string gets on the stack is if an object is
-                // being read and its key has been read but not the
-                // corresponding value. Now we have that value, so insert
-                // the KV pair into the object.
-                String key = (String)stack.pop();
-                HashMap stackObj = (HashMap)stack.peek();
-                stackObj.put(key, obj);
-                return obj;
-            } else {
-                throw new IllegalArgumentException("Attempted to finish an object that was above an illegal type on the stack.");
-            }
-        }
+        return new HashMap<String,Object>();
     }
 
-    /* 
-       Given a stack and an object, adds the object to the stack according
-       to what is at the top of the stack. 
-
-       There are three things that can go on the stack: arrays, objects (hashtables),
-       and strings, and the operations are governed by three simple rules:
-
-       * If the top of the stack is an array, stackAppend should append the
-       object to the array.
-       * If the top of the stack is an object, then only a string can be pushed
-       onto the stack (this will be the key of the next entry in the hashtable).
-       * If the top of the stack is a string, then you can push a string, array
-         or object onto the stack.
-
-       Anything else is an error, but this library will only ever give you a 
-       valid object (unless it has a bug).
-    */
-    public static void stackPush(Stack stack, Object newObj)
+    public static void objectInsert(Object o, Object key, Object value)
     {
-        Object top = stack.peek();
+        HashMap<String, Object> obj = (HashMap<String,Object>)o;
+        obj.put((String)key, value);
+    }
 
-        if (top instanceof ArrayList) {
-            ((ArrayList)top).add(newObj);
-        } else if (top instanceof HashMap && newObj instanceof String) {
-            stack.push(newObj); 
-        } else if (top instanceof String) {
-            String key = (String)stack.pop();
-            HashMap<String,Object> topObj = (HashMap<String,Object>)stack.peek();
-            topObj.put(key, newObj);            
-        } else {
-            throw new IllegalArgumentException("Could not push the object " + newObj.toString()
-                                               + " onto the JSON context stack when the top of the stack is " + top.toString());
-        }
+    public static Object finishObject(Object obj)
+    {
+        return obj;
     }
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
@@ -173,6 +98,7 @@ public class SubJson
     public static Object parse(LightReader jsonSrc) throws Exception
     {
         Stack stack = new Stack();
+        Stack keyStack = new Stack(); // For parsing KV pairs in objects.
         int currState = LBL_PARSE_VALUE; 
 
         int currRune = 0;
@@ -319,19 +245,19 @@ public class SubJson
                 } else {
                     if (isArray(stack.peek())) {
                         // We had to parse an object while parsing an array
+                        arrayAppend(stack.peek(), latestValue);
                         currState = LBL_PA_PARSEDVALUE;
-                    } else if (isObject(stack.peek()) 
-                               || stack.peek() instanceof String) {
+                    } else if (isObject(stack.peek())) {
+                        objectInsert(stack.peek(), keyStack.pop(), latestValue);
                         currState = LBL_PO_PARSEDKV;
                     }
-                    stackPush(stack, latestValue);
                     break dispatch;
                 }
 
                 // "parseArray()" (see comment above)
             case LBL_PARSE_ARRAY:
                 parseChar(jsonSrc, '[');
-                startArray(stack);
+                stack.push(startArray());
             case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
                 skipWhitespace(jsonSrc);
                 currRune = jsonSrc.read();
@@ -356,19 +282,19 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, ']');
-                    Object resultArray = finishArray(stack);
+                    latestValue = finishArray(stack.pop());
                     // Now we need to check stack to figure out where to return to.
                     if (stack.empty()) {
-                        return resultArray;
+                        return latestValue;
                     } else {
                         if (isArray(stack.peek())) {
                             // We had to parse an array while parsing an array
+                            arrayAppend(stack.peek(), latestValue);
                             currState = LBL_PA_PARSEDVALUE;
-                        } else if (isObject(stack.peek()) 
-                                   || stack.peek() instanceof String) {
+                        } else if (isObject(stack.peek())) {
+                            objectInsert(stack.peek(), keyStack.pop(), latestValue);
                             currState = LBL_PO_PARSEDKV;
                         }
-                        stackPush(stack, (Object)resultArray);
                         break dispatch;
                     }
                 }
@@ -376,7 +302,7 @@ public class SubJson
                 // "parseObject()" (see comment above)
             case LBL_PARSE_OBJECT:
                 parseChar(jsonSrc, '{');
-                startObject(stack);
+                stack.push(startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
                 skipWhitespace(jsonSrc);
                 currRune = jsonSrc.read(); 
@@ -387,8 +313,7 @@ public class SubJson
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an object.");
                 } else if (currRune != '}') {
-                    String key = parseString(jsonSrc);
-                    stack.push(key);
+                    keyStack.push(parseString(jsonSrc));
                     skipWhitespace(jsonSrc);
                     parseChar(jsonSrc, ':');
                     skipWhitespace(jsonSrc);
@@ -406,19 +331,19 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, '}');
-                    Object resultObject = finishObject(stack);
+                    latestValue = finishObject(stack.pop());
                     // Now we need to check stack to figure out where to return to.
                     if (stack.empty()) {
-                        return resultObject;
+                        return latestValue;
                     } else {
                         if (isArray(stack.peek())) {
                             // We had to parse an object while parsing an array
+                            arrayAppend(stack.peek(), latestValue);
                             currState = LBL_PA_PARSEDVALUE;
-                        } else if (isObject(stack.peek())
-                                   || stack.peek() instanceof String) {
+                        } else if (isObject(stack.peek())) {
+                            objectInsert(stack.peek(), keyStack.pop(), latestValue);
                             currState = LBL_PO_PARSEDKV;
                         }
-                        stackPush(stack, (Object)resultObject);
                         break dispatch;
                     }
                 }
