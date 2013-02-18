@@ -1,6 +1,6 @@
 package su.boptim.al.subjson;
 
-import java.util.Stack;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -98,8 +98,8 @@ public class SubJson
     // movement.
     public static Object parse(LightReader jsonSrc) throws Exception
     {
-        Stack valueStack = new Stack();
-        Stack keyStack = new Stack(); // For parsing KV pairs in objects.
+        ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
+        ArrayDeque<Object> keyStack = new ArrayDeque<Object>(); // For parsing KV pairs in objects.
         int currState = LBL_PARSE_VALUE; 
 
         int currRune = 0;
@@ -246,7 +246,7 @@ public class SubJson
                 // the value should be returned. Otherwise, we need to insert it on
                 // the value stack, depending on what is on top of that, and "return" to
                 // the "function" that was building what was on top of the stack.
-                if (valueStack.empty()) {
+                if (valueStack.isEmpty()) {
                     return latestValue;
                 } else {
                     if (isArray(valueStack.peek())) {
