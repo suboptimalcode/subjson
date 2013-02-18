@@ -66,6 +66,7 @@ public class SubJson
         return new ArrayList();
     }
 
+    @SuppressWarnings("unchecked")
     public static void arrayAppend(Object a, Object value)
     {
         ArrayList<Object> arr = (ArrayList<Object>)a;
@@ -82,9 +83,10 @@ public class SubJson
         return new HashMap<String,Object>();
     }
 
+    @SuppressWarnings("unchecked")
     public static void objectInsert(Object o, Object key, Object value)
     {
-        HashMap<String, Object> obj = (HashMap<String,Object>)o;
+        HashMap<String,Object> obj = (HashMap<String,Object>)o;
         obj.put((String)key, value);
     }
 
