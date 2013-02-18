@@ -98,7 +98,7 @@ public class SubJson
     // movement.
     public static Object parse(LightReader jsonSrc) throws Exception
     {
-        Stack stack = new Stack();
+        Stack valueStack = new Stack();
         Stack keyStack = new Stack(); // For parsing KV pairs in objects.
         int currState = LBL_PARSE_VALUE; 
 
@@ -239,22 +239,22 @@ public class SubJson
                     throw new IllegalArgumentException("Encountered invalid character in input.");
                 }
 
-                // Fall through to route_value()...
+                // Fall through to route_value() to finish the value...
             case LBL_ROUTE_VALUE:
                 // Having read a value, we need to figure out where to store it and
                 // where to "return" to. If the value stack is empty, we are done and
                 // the value should be returned. Otherwise, we need to insert it on
                 // the value stack, depending on what is on top of that, and "return" to
                 // the "function" that was building what was on top of the stack.
-                if (stack.empty()) {
+                if (valueStack.empty()) {
                     return latestValue;
                 } else {
-                    if (isArray(stack.peek())) {
+                    if (isArray(valueStack.peek())) {
                         // We had to parse a value while parsing an array
-                        arrayAppend(stack.peek(), latestValue);
+                        arrayAppend(valueStack.peek(), latestValue);
                         currState = LBL_PA_PARSEDVALUE;
-                    } else if (isObject(stack.peek())) {
-                        objectInsert(stack.peek(), keyStack.pop(), latestValue);
+                    } else if (isObject(valueStack.peek())) {
+                        objectInsert(valueStack.peek(), keyStack.pop(), latestValue);
                         currState = LBL_PO_PARSEDKV;
                     }
                     break dispatch;
@@ -264,7 +264,7 @@ public class SubJson
                 // "parseArray()" (see comment above)
             case LBL_PARSE_ARRAY:
                 parseChar(jsonSrc, '[');
-                stack.push(startArray());
+                valueStack.push(startArray());
             case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
                 skipWhitespace(jsonSrc);
                 currRune = jsonSrc.read();
@@ -289,7 +289,7 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, ']');
-                    latestValue = finishArray(stack.pop());
+                    latestValue = finishArray(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
@@ -298,7 +298,7 @@ public class SubJson
                 // "parseObject()" (see comment above)
             case LBL_PARSE_OBJECT:
                 parseChar(jsonSrc, '{');
-                stack.push(startObject());
+                valueStack.push(startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
                 skipWhitespace(jsonSrc);
                 currRune = jsonSrc.read(); 
@@ -327,14 +327,14 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, '}');
-                    latestValue = finishObject(stack.pop());
+                    latestValue = finishObject(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
                 }
             }
         }   
-        return stack.pop();
+        return valueStack.pop(); // No idea how we'd get here.
     }
 
     /*
