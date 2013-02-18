@@ -74,7 +74,7 @@ public class SubJson
 
     public static Object finishArray(Object arr)
     {
-        return ((ArrayList<?>)arr).toArray();
+        return arr;
     }
 
     public static Object startObject()
