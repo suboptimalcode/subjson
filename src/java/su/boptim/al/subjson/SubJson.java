@@ -14,6 +14,7 @@ public class SubJson
     static final int LBL_PARSE_OBJECT = 4;
     static final int LBL_PO_STARTKV = 5;
     static final int LBL_PO_PARSEDKV = 6;
+    static final int LBL_ROUTE_VALUE = 7;
     
     public static boolean isDigit(int rune) 
     {
@@ -238,13 +239,18 @@ public class SubJson
                     throw new IllegalArgumentException("Encountered invalid character in input.");
                 }
 
+                // Fall through to route_value()...
+            case LBL_ROUTE_VALUE:
                 // Having read a value, we need to figure out where to store it and
-                // where to "return" to.
+                // where to "return" to. If the value stack is empty, we are done and
+                // the value should be returned. Otherwise, we need to insert it on
+                // the value stack, depending on what is on top of that, and "return" to
+                // the "function" that was building what was on top of the stack.
                 if (stack.empty()) {
                     return latestValue;
                 } else {
                     if (isArray(stack.peek())) {
-                        // We had to parse an object while parsing an array
+                        // We had to parse a value while parsing an array
                         arrayAppend(stack.peek(), latestValue);
                         currState = LBL_PA_PARSEDVALUE;
                     } else if (isObject(stack.peek())) {
@@ -253,6 +259,7 @@ public class SubJson
                     }
                     break dispatch;
                 }
+                // Can't fall through to here.
 
                 // "parseArray()" (see comment above)
             case LBL_PARSE_ARRAY:
@@ -284,19 +291,8 @@ public class SubJson
                     parseChar(jsonSrc, ']');
                     latestValue = finishArray(stack.pop());
                     // Now we need to check stack to figure out where to return to.
-                    if (stack.empty()) {
-                        return latestValue;
-                    } else {
-                        if (isArray(stack.peek())) {
-                            // We had to parse an array while parsing an array
-                            arrayAppend(stack.peek(), latestValue);
-                            currState = LBL_PA_PARSEDVALUE;
-                        } else if (isObject(stack.peek())) {
-                            objectInsert(stack.peek(), keyStack.pop(), latestValue);
-                            currState = LBL_PO_PARSEDKV;
-                        }
-                        break dispatch;
-                    }
+                    currState = LBL_ROUTE_VALUE; // "call" "route_value()"
+                    break dispatch;
                 }
 
                 // "parseObject()" (see comment above)
@@ -333,19 +329,8 @@ public class SubJson
                     parseChar(jsonSrc, '}');
                     latestValue = finishObject(stack.pop());
                     // Now we need to check stack to figure out where to return to.
-                    if (stack.empty()) {
-                        return latestValue;
-                    } else {
-                        if (isArray(stack.peek())) {
-                            // We had to parse an object while parsing an array
-                            arrayAppend(stack.peek(), latestValue);
-                            currState = LBL_PA_PARSEDVALUE;
-                        } else if (isObject(stack.peek())) {
-                            objectInsert(stack.peek(), keyStack.pop(), latestValue);
-                            currState = LBL_PO_PARSEDKV;
-                        }
-                        break dispatch;
-                    }
+                    currState = LBL_ROUTE_VALUE; // "call" "route_value()"
+                    break dispatch;
                 }
             }
         }   
