@@ -14,8 +14,11 @@
              :cheshire5.0 {:dependencies [[cheshire "5.0.2"]]}
              :jackson2.1 {:dependencies [[com.fasterxml.jackson.core/jackson-core "2.1.3"]
                                          [com.fasterxml.jackson.core/jackson-databind "2.1.3"]]}}
-  :perforate {:environments [{:name :subjson0.1
-                              :profiles [:test :subjson0.1 :cheshire5.0
-                                         :jackson2.1]
+  :perforate {:environments [{:name :current
+                              :profiles [:test :cheshire5.0 :jackson2.1]
+                              :namespaces [subjson.benchmarks.core]}
+                             {:name :subjson0.1
+                              :profiles [:test :subjson0.1
+                                         :cheshire5.0 :jackson2.1]
                               :namespaces [subjson.benchmarks.core]}]}
   )
