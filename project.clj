@@ -7,4 +7,6 @@
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]
+
+  :profiles {:test {:resource-paths ["resources" "test/resources"]}}
   )

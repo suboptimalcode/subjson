@@ -1,5 +1,6 @@
 (ns subjson.test.subjson
   (:use clojure.test)
+  (:require [clojure.java.io :as io])
   (:import [su.boptim.al.subjson SubJson LightReader LightStringReader]
            [java.lang.reflect Method]))
 
@@ -309,3 +310,18 @@
     (is (= obj (SubJson/parse (LightStringReader. obj-src)))))
   (doseq [not-obj not-objects]
     (is (thrown? Exception (SubJson/parse (LightStringReader. not-obj))))))
+
+;;
+;; "Full" examples
+;;
+
+(def jsonorg_examples ["glossary" "menu" "widget" "web-app" "menu2"])
+
+(deftest test_jsonorg_examples
+  (doseq [example-name jsonorg_examples]
+    (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
+                       io/resource slurp)
+          edn-src (-> (str "jsonorg_examples/" example-name ".edn")
+                      io/resource slurp)]
+      (is (= (SubJson/parse (LightStringReader. json-src))
+             (read-string edn-src))))))
