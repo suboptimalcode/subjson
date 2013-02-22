@@ -1,6 +1,6 @@
 package su.boptim.al.subjson;
 
-import java.util.Stack;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -14,6 +14,7 @@ public class SubJson
     static final int LBL_PARSE_OBJECT = 4;
     static final int LBL_PO_STARTKV = 5;
     static final int LBL_PO_PARSEDKV = 6;
+    static final int LBL_ROUTE_VALUE = 7;
     
     public static boolean isDigit(int rune) 
     {
@@ -65,6 +66,7 @@ public class SubJson
         return new ArrayList();
     }
 
+    @SuppressWarnings("unchecked")
     public static void arrayAppend(Object a, Object value)
     {
         ArrayList<Object> arr = (ArrayList<Object>)a;
@@ -73,7 +75,7 @@ public class SubJson
 
     public static Object finishArray(Object arr)
     {
-        return ((ArrayList<?>)arr).toArray();
+        return arr;
     }
 
     public static Object startObject()
@@ -81,9 +83,10 @@ public class SubJson
         return new HashMap<String,Object>();
     }
 
+    @SuppressWarnings("unchecked")
     public static void objectInsert(Object o, Object key, Object value)
     {
-        HashMap<String, Object> obj = (HashMap<String,Object>)o;
+        HashMap<String,Object> obj = (HashMap<String,Object>)o;
         obj.put((String)key, value);
     }
 
@@ -97,8 +100,8 @@ public class SubJson
     // movement.
     public static Object parse(LightReader jsonSrc) throws Exception
     {
-        Stack stack = new Stack();
-        Stack keyStack = new Stack(); // For parsing KV pairs in objects.
+        ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
+        ArrayDeque<Object> keyStack = new ArrayDeque<Object>(); // For parsing KV pairs in objects.
         int currState = LBL_PARSE_VALUE; 
 
         int currRune = 0;
@@ -238,26 +241,32 @@ public class SubJson
                     throw new IllegalArgumentException("Encountered invalid character in input.");
                 }
 
+                // Fall through to route_value() to finish the value...
+            case LBL_ROUTE_VALUE:
                 // Having read a value, we need to figure out where to store it and
-                // where to "return" to.
-                if (stack.empty()) {
+                // where to "return" to. If the value stack is empty, we are done and
+                // the value should be returned. Otherwise, we need to insert it on
+                // the value stack, depending on what is on top of that, and "return" to
+                // the "function" that was building what was on top of the stack.
+                if (valueStack.isEmpty()) {
                     return latestValue;
                 } else {
-                    if (isArray(stack.peek())) {
-                        // We had to parse an object while parsing an array
-                        arrayAppend(stack.peek(), latestValue);
+                    if (isArray(valueStack.peek())) {
+                        // We had to parse a value while parsing an array
+                        arrayAppend(valueStack.peek(), latestValue);
                         currState = LBL_PA_PARSEDVALUE;
-                    } else if (isObject(stack.peek())) {
-                        objectInsert(stack.peek(), keyStack.pop(), latestValue);
+                    } else if (isObject(valueStack.peek())) {
+                        objectInsert(valueStack.peek(), keyStack.pop(), latestValue);
                         currState = LBL_PO_PARSEDKV;
                     }
                     break dispatch;
                 }
+                // Can't fall through to here.
 
                 // "parseArray()" (see comment above)
             case LBL_PARSE_ARRAY:
                 parseChar(jsonSrc, '[');
-                stack.push(startArray());
+                valueStack.push(startArray());
             case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
                 skipWhitespace(jsonSrc);
                 currRune = jsonSrc.read();
@@ -282,27 +291,16 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, ']');
-                    latestValue = finishArray(stack.pop());
+                    latestValue = finishArray(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
-                    if (stack.empty()) {
-                        return latestValue;
-                    } else {
-                        if (isArray(stack.peek())) {
-                            // We had to parse an array while parsing an array
-                            arrayAppend(stack.peek(), latestValue);
-                            currState = LBL_PA_PARSEDVALUE;
-                        } else if (isObject(stack.peek())) {
-                            objectInsert(stack.peek(), keyStack.pop(), latestValue);
-                            currState = LBL_PO_PARSEDKV;
-                        }
-                        break dispatch;
-                    }
+                    currState = LBL_ROUTE_VALUE; // "call" "route_value()"
+                    break dispatch;
                 }
 
                 // "parseObject()" (see comment above)
             case LBL_PARSE_OBJECT:
                 parseChar(jsonSrc, '{');
-                stack.push(startObject());
+                valueStack.push(startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
                 skipWhitespace(jsonSrc);
                 currRune = jsonSrc.read(); 
@@ -331,25 +329,14 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, '}');
-                    latestValue = finishObject(stack.pop());
+                    latestValue = finishObject(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
-                    if (stack.empty()) {
-                        return latestValue;
-                    } else {
-                        if (isArray(stack.peek())) {
-                            // We had to parse an object while parsing an array
-                            arrayAppend(stack.peek(), latestValue);
-                            currState = LBL_PA_PARSEDVALUE;
-                        } else if (isObject(stack.peek())) {
-                            objectInsert(stack.peek(), keyStack.pop(), latestValue);
-                            currState = LBL_PO_PARSEDKV;
-                        }
-                        break dispatch;
-                    }
+                    currState = LBL_ROUTE_VALUE; // "call" "route_value()"
+                    break dispatch;
                 }
             }
         }   
-        return stack.pop();
+        return valueStack.pop(); // No idea how we'd get here.
     }
 
     /*

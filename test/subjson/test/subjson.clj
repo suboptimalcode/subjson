@@ -1,5 +1,6 @@
 (ns subjson.test.subjson
   (:use clojure.test)
+  (:require [clojure.java.io :as io])
   (:import [su.boptim.al.subjson SubJson LightReader LightStringReader]
            [java.lang.reflect Method]))
 
@@ -246,8 +247,6 @@
 ;; Parsing arrays
 ;;
 
-;; Unfortunately testing arrays within arrays is a bit tricky
-;; in the default building policy.
 (def arrays {"[]" []
              "[1]" [1]
              "[1,2]" [1,2]
@@ -261,14 +260,18 @@
              "[true, false, null]" [true, false, nil]
              "[ null , true , false , 123, 45.67e+89, \"ten\"]"
              [nil, true, false, 123, 45.67e+89, "ten"]
-             })
+             "[[]]" [[]]
+             "[[[[[[[[[[1, 2.0, false, null]]]]]]]]]]"
+             [[[[[[[[[[1 2.0 false nil]]]]]]]]]]
+             "[{\"a\":[1, 2,3]}, {\"b\":[true]}]"
+             [{"a" [1 2 3]} {"b" [true]}]})
 
 (def not-arrays ["[" "[1" "[1,2" "[1 2]" "[\"hi\"" "[\"hi\",true"
-                 "[null, \"hi\"" "[\"hi\" \"there\""])
+                 "[null, \"hi\"" "[\"hi\" \"there\"" "[}" "[1,}" "[1,2}"])
 
 (deftest parse-test--array
   (doseq [[arr-src arr] arrays]
-    (is (= (seq arr) (seq (SubJson/parse (LightStringReader. arr-src))))))
+    (is (= arr (SubJson/parse (LightStringReader. arr-src)))))
   (doseq [not-arr not-arrays]
     (is (thrown? Exception (SubJson/parse (LightStringReader. not-arr))))))
 
@@ -276,8 +279,6 @@
 ;; Parsing objects
 ;;
 
-;; Again, testing objects with nested objects is a bit tricky
-;; in the default building policy.
 (def objects {"{}" {}
               "{\"\":1}" {"" 1}
               "{\"\" :1}" {"" 1}
@@ -295,15 +296,32 @@
               "{\"a\":{\"b\":\"c\"}}" {"a" {"b" "c"}}
               "{\"a\":{\"b\":{\"c\":\"d\"}}}" {"a" {"b" {"c" "d"}}}
               "{\"a\": {\"b\":\"c\"},\"d\":\"e\"}" {"a" {"b" "c"} "d" "e"}
-              "{\"a\":{\"b\":0,\"c\":1},\"d\":{\"e\":4,\"f\":8} }"
-              {"a" {"b" 0 "c" 1} "d" {"e" 4 "f" 8}}
-              })
+              "{\"a\":{\"b\":0,\"c\":1},\"d\":{\"e\":4,\"f\":false} }"
+              {"a" {"b" 0 "c" 1} "d" {"e" 4 "f" false}}
+              "{\"a\":[{\"b\":{\"c\":\"d\"},\"e\":4}],\"f\":false}"
+              {"a" [{"b" {"c" "d"} "e" 4}] "f" false}})
 
 (def not-objects ["{" "}" "{1:1}" "{\"}" "{\"1\":}"
-                  "{\"1\" 1}" "{\"1\":1 \"2\":2}"])
+                  "{\"1\" 1}" "{\"1\":1 \"2\":2}" "{]" "{\"a\":" "{\"a\":1"
+                  "{\"a\":1," "{\"a\":]" "{\"a\":1]" "{\"a\":1,]"])
 
 (deftest parse-test--object
   (doseq [[obj-src obj] objects]
     (is (= obj (SubJson/parse (LightStringReader. obj-src)))))
   (doseq [not-obj not-objects]
     (is (thrown? Exception (SubJson/parse (LightStringReader. not-obj))))))
+
+;;
+;; "Full" examples
+;;
+
+(def jsonorg_examples ["glossary" "menu" "widget" "web-app" "menu2"])
+
+(deftest test_jsonorg_examples
+  (doseq [example-name jsonorg_examples]
+    (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
+                       io/resource slurp)
+          edn-src (-> (str "jsonorg_examples/" example-name ".edn")
+                      io/resource slurp)]
+      (is (= (SubJson/parse (LightStringReader. json-src))
+             (read-string edn-src))))))
