@@ -1,4 +1,4 @@
-(defproject subjson "0.1.0"
+(defproject subjson "0.2.0-SNAPSHOT"
   :description "A simple JSON parser, easily bound to JVM languages."
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
