@@ -20,5 +20,8 @@
                              {:name :subjson0.1
                               :profiles [:test :subjson0.1
                                          :cheshire5.0 :jackson2.1]
-                              :namespaces [subjson.benchmarks.core]}]}
+                              :namespaces [subjson.benchmarks.core]}
+                             {:name buffers
+                              :profiles []
+                              :namespaces [subjson.benchmarks.buffers]}]}
   )

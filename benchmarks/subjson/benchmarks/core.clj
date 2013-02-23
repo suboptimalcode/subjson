@@ -19,12 +19,20 @@
                        io/resource slurp)]
       [(fn [] (cheshire/parse-string json-src))])))
 
-(defcase* small-parse-test :jackson
+(defcase* small-parse-test :jackson-tree
   (fn []
     (let [json-src (-> "jsonorg_examples/menu.json"
                        io/resource slurp)
           mapper (ObjectMapper.)]
       [(fn [] (.readTree mapper json-src))])))
+
+
+(defcase* small-parse-test :jackson-mapper
+  (fn []
+    (let [json-src (-> "jsonorg_examples/menu.json"
+                       io/resource slurp)
+          mapper (ObjectMapper.)]
+      [(fn [] (.readValue mapper json-src Object))])))
 
 (defgoal large-parse-test "JSON Parse Speed - Large Object")
 
@@ -40,9 +48,16 @@
                        io/resource slurp)]
       [(fn [] (cheshire/parse-string json-src))])))
 
-(defcase* large-parse-test :jackson
+(defcase* large-parse-test :jackson-tree
   (fn []
     (let [json-src (-> "jsonorg_examples/web-app.json"
                        io/resource slurp)
           mapper (ObjectMapper.)]
       [(fn [] (.readTree mapper json-src))])))
+
+(defcase* large-parse-test :jackson-mapper
+  (fn []
+    (let [json-src (-> "jsonorg_examples/web-app.json"
+                       io/resource slurp)
+          mapper (ObjectMapper.)]
+      [(fn [] (.readValue mapper json-src Object))])))
