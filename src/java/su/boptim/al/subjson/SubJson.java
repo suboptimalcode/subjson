@@ -676,7 +676,7 @@ public class SubJson
                     break;
                 default:
                     // Just some regular old character.
-                    sb.appendCodePoint(currRune);
+                    sb.append((char)currRune);
                     break;
                 }
             }
