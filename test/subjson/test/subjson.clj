@@ -1,7 +1,7 @@
 (ns subjson.test.subjson
   (:use clojure.test)
   (:require [clojure.java.io :as io])
-  (:import [su.boptim.al.subjson SubJson LightReader LightStringReader]
+  (:import [su.boptim.al.subjson SubJson ISpeedReader StringISpeedReader]
            [java.lang.reflect Method]))
 
 (defn get-private-static-method
@@ -9,7 +9,7 @@
    with the arguments given to the closure."
   [method-name]
   (let [method (.getDeclaredMethod SubJson method-name
-                                   (into-array Class [LightReader]))]
+                                   (into-array Class [ISpeedReader]))]
     (.setAccessible method true)
     (fn [& args]
       (.invoke method nil ;; static methods only
@@ -86,7 +86,7 @@
 
 (deftest parse-test--whitespace
   (doseq [[ws-str next-char] whitespaces]
-    (let [lsr (LightStringReader. ws-str)]
+    (let [lsr (StringISpeedReader. ws-str)]
       (is (= (int next-char) (do (skipWhitespace lsr)
                                  (.read lsr)))))))
 
@@ -121,26 +121,26 @@
 
 (deftest parse-test--numbers
   (doseq [[num-str num] json-numbers]
-    (is (= num (parseNumber (LightStringReader. num-str)))))
+    (is (= num (parseNumber (StringISpeedReader. num-str)))))
   (doseq [not-num not-json-numbers]
     (is (thrown? Exception
-                 (parseNumber (LightStringReader. not-num)))))
+                 (parseNumber (StringISpeedReader. not-num)))))
 
   ;; Check that it still works from main json parse
   (doseq [[num-str num] json-numbers]
-    (is (= num (SubJson/parse (LightStringReader. num-str)))))
+    (is (= num (SubJson/parse (StringISpeedReader. num-str)))))
   (doseq [not-num not-json-numbers]
     (is (thrown? Exception
-                 (SubJson/parse (LightStringReader. not-num)))))
+                 (SubJson/parse (StringISpeedReader. not-num)))))
 
   ;; Check that it still works from main json parse with leading/trailing ws
   (doseq [[num-str num] json-numbers]
-    (is (= num (SubJson/parse (LightStringReader. (str " \t"
+    (is (= num (SubJson/parse (StringISpeedReader. (str " \t"
                                                         num-str
                                                         "\r\n"))))))
   (doseq [not-num not-json-numbers]
     (is (thrown? Exception
-                 (SubJson/parse (LightStringReader. (str " \t"
+                 (SubJson/parse (StringISpeedReader. (str " \t"
                                                           not-num
                                                           "\r\n")))))))
 
@@ -163,18 +163,18 @@
 
 (deftest parse-test--booleans
   (doseq [[bool-src bool-val] bools]
-    (is (= bool-val (parseBoolean (LightStringReader. bool-src)))))
+    (is (= bool-val (parseBoolean (StringISpeedReader. bool-src)))))
   (doseq [not-bool not-booleans]
     (is (thrown? Exception
-                 (parseBoolean (LightStringReader. not-bool)))))
+                 (parseBoolean (StringISpeedReader. not-bool)))))
 
   ;; Check that it still works from main json parse
   (doseq [[bool-src bool-val] bools]
-    (is (= bool-val (SubJson/parse (LightStringReader. bool-src)))))
+    (is (= bool-val (SubJson/parse (StringISpeedReader. bool-src)))))
 
   ;; Check that it still works from main json parse with leading/trailing ws
   (doseq [[bool-src bool-val] bools]
-    (is (= bool-val (SubJson/parse (LightStringReader. (str " \t"
+    (is (= bool-val (SubJson/parse (StringISpeedReader. (str " \t"
                                                              bool-src
                                                              "\r\n")))))))
 
@@ -194,17 +194,17 @@
 
 (deftest parse-test--null
   (doseq [[null-src next-chr] nulls]
-    (let [lsr (LightStringReader. null-src)]
+    (let [lsr (StringISpeedReader. null-src)]
       (is (= (int next-chr) (do (parseNull lsr)
                                 (.read lsr))))))
   (doseq [not-null not-nulls]
-    (is (thrown? Exception (parseNull (LightStringReader. not-null)))))
+    (is (thrown? Exception (parseNull (StringISpeedReader. not-null)))))
 
   ;; Check that it still works from the main json parse
   (doseq [[null-src next-chr] nulls]
-    (is (= nil (SubJson/parse (LightStringReader. null-src)))))
+    (is (= nil (SubJson/parse (StringISpeedReader. null-src)))))
   (doseq [[null-src next-chr] nulls]
-    (is (= nil (SubJson/parse (LightStringReader. (str " \t"
+    (is (= nil (SubJson/parse (StringISpeedReader. (str " \t"
                                                         null-src
                                                         "\r\n")))))))
 
@@ -231,15 +231,15 @@
 
 (deftest parse-test--string
   (doseq [[string-src string-value] strings]
-    (is (= string-value (parseString (LightStringReader. string-src)))))
+    (is (= string-value (parseString (StringISpeedReader. string-src)))))
   (doseq [not-string not-strings]
-    (is (thrown? Exception (parseString (LightStringReader. not-string)))))
+    (is (thrown? Exception (parseString (StringISpeedReader. not-string)))))
 
   ;; Check that it still works from the main json parse
   (doseq [[string-src string-value] strings]
-    (is (= string-value (SubJson/parse (LightStringReader. string-src)))))
+    (is (= string-value (SubJson/parse (StringISpeedReader. string-src)))))
    (doseq [[string-src string-value] strings]
-     (is (= string-value (SubJson/parse (LightStringReader. (str " \t"
+     (is (= string-value (SubJson/parse (StringISpeedReader. (str " \t"
                                                                   string-src
                                                                   "\r\n")))))))
 
@@ -271,9 +271,9 @@
 
 (deftest parse-test--array
   (doseq [[arr-src arr] arrays]
-    (is (= arr (SubJson/parse (LightStringReader. arr-src)))))
+    (is (= arr (SubJson/parse (StringISpeedReader. arr-src)))))
   (doseq [not-arr not-arrays]
-    (is (thrown? Exception (SubJson/parse (LightStringReader. not-arr))))))
+    (is (thrown? Exception (SubJson/parse (StringISpeedReader. not-arr))))))
 
 ;;
 ;; Parsing objects
@@ -307,9 +307,9 @@
 
 (deftest parse-test--object
   (doseq [[obj-src obj] objects]
-    (is (= obj (SubJson/parse (LightStringReader. obj-src)))))
+    (is (= obj (SubJson/parse (StringISpeedReader. obj-src)))))
   (doseq [not-obj not-objects]
-    (is (thrown? Exception (SubJson/parse (LightStringReader. not-obj))))))
+    (is (thrown? Exception (SubJson/parse (StringISpeedReader. not-obj))))))
 
 ;;
 ;; "Full" examples
@@ -323,5 +323,5 @@
                        io/resource slurp)
           edn-src (-> (str "jsonorg_examples/" example-name ".edn")
                       io/resource slurp)]
-      (is (= (SubJson/parse (LightStringReader. json-src))
+      (is (= (SubJson/parse (StringISpeedReader. json-src))
              (read-string edn-src))))))

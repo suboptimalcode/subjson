@@ -96,9 +96,9 @@ public class SubJson
     }
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
-    // and the LightReader must buffer at least one character for backwards
+    // and the ISpeedReader must buffer at least one character for backwards
     // movement.
-    public static Object parse(LightReader jsonSrc) throws Exception
+    public static Object parse(ISpeedReader jsonSrc) throws Exception
     {
         ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
         ArrayDeque<Object> keyStack = new ArrayDeque<Object>(); // For parsing KV pairs in objects.
@@ -340,10 +340,10 @@ public class SubJson
     }
 
     /*
-      Given a LightReader at any point, skips past any whitespace (space, tab, CR, LF)
+      Given a ISpeedReader at any point, skips past any whitespace (space, tab, CR, LF)
       so that the next character read will be something that is not whitespace (or EOF).
     */
-    private static void skipWhitespace(LightReader jsonSrc)
+    private static void skipWhitespace(ISpeedReader jsonSrc)
     {
         int currRune = jsonSrc.read();
         
@@ -365,12 +365,12 @@ public class SubJson
     }
 
     /*
-      Given a LightReader, attempts to read the next character from it and check that
+      Given a ISpeedReader, attempts to read the next character from it and check that
       it is the character given as the second argument. If it is, it simply returns
-      and the LightReader will be on the next character after the one just read. 
+      and the ISpeedReader will be on the next character after the one just read. 
       Otherwise, throws a descriptive error.
      */
-    private static void parseChar(LightReader jsonSrc, char theChar)
+    private static void parseChar(ISpeedReader jsonSrc, char theChar)
     {
         int currRune = jsonSrc.read();
         if (currRune == theChar) {
@@ -385,12 +385,12 @@ public class SubJson
     }
 
     /*
-      parseNull takes a LightReader that is pointing at a JSON null literal and
-      advances the LightReader to the character after the end of the literal, 
+      parseNull takes a ISpeedReader that is pointing at a JSON null literal and
+      advances the ISpeedReader to the character after the end of the literal, 
       while checking that the null literal is correctly written and providing errors
       if not.
     */
-    private static void parseNull(LightReader jsonSrc)
+    private static void parseNull(ISpeedReader jsonSrc)
     {   
         // This loop only executes once, use it to simulate goto with a break.
         while (true) {
@@ -414,12 +414,12 @@ public class SubJson
     }
 
     /*
-      parseBoolean takes a LightReader that is pointing at a JSON boolean literal
+      parseBoolean takes a ISpeedReader that is pointing at a JSON boolean literal
       and does two things:
       1) Returns the boolean value that literal represents (true or false)
-      2) Advances the LightReader to the character after the end of the literal.
+      2) Advances the ISpeedReader to the character after the end of the literal.
     */
-    private static Boolean parseBoolean(LightReader jsonSrc)
+    private static Boolean parseBoolean(ISpeedReader jsonSrc)
     {
         int currRune = jsonSrc.read();
         switch (currRune) {
@@ -462,22 +462,22 @@ public class SubJson
             throw new IllegalArgumentException("Encountered invalid input while attempting to read the boolean literal 'false'.");
         default:
             // This code should never execute unless there is a bug; this function
-            // should only be called if the next 4 or 5 characters in the LightReader
+            // should only be called if the next 4 or 5 characters in the ISpeedReader
             // will be one of the two boolean literals.
             throw new IllegalArgumentException("Attempted to parse a boolean literal out of input that was not pointing at one.");
         }
     }
 
     /* 
-       parseNumber takes a LightReader that is pointing at a JSON number literal
+       parseNumber takes a ISpeedReader that is pointing at a JSON number literal
        and does two things: 
        1) Returns the Number that literal represents
-       2) Advances the LightReader to the first non-number character in the JSON
+       2) Advances the ISpeedReader to the first non-number character in the JSON
           source (that is, a read() after this function will return the next character
           after the number literal). Basically clips the number off the front of
           the stream.
     */
-    private static Number parseNumber(LightReader jsonSrc)
+    private static Number parseNumber(ISpeedReader jsonSrc)
     {
         StringBuilder sb = new StringBuilder();
         int currRune = jsonSrc.read();
@@ -599,14 +599,14 @@ public class SubJson
     }
 
     /* 
-       parseString takes a LightReader that is pointing at a JSON string literal
+       parseString takes a ISpeedReader that is pointing at a JSON string literal
        and does two things: 
        1) Returns the String that literal represents
-       2) Advances the LightReader to the first character after the end of the 
+       2) Advances the ISpeedReader to the first character after the end of the 
           string in the JSON source. Basically clips the string off the front
           of the stream.
     */
-    private static String parseString(LightReader jsonSrc)
+    private static String parseString(ISpeedReader jsonSrc)
     {
         StringBuilder sb = new StringBuilder();
         int currRune = jsonSrc.read();
