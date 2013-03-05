@@ -45,7 +45,7 @@
            (ParseToQuotes/findQuote (BufferedReader.
                                      (StringReader. test-str)))))])))
 
-(defcase* find-endquote :lightstringreader
+#_(defcase* find-endquote :lightstringreader
   (fn []
     (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")
           lsr (LightStringReader. test-str)]
@@ -55,7 +55,7 @@
              (ParseToQuotes/findQuote lsr)
              (.move lsr (int -6000)))))])))
 
-#_(defcase* find-endquote :lightstringreader
+(defcase* find-endquote :lightstringreader
   (fn []
     (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")]
       [(fn []
@@ -82,21 +82,10 @@
 
 (defcase* find-endquote :stringispeedreader
   (fn []
-    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")
-          ssr (StringISpeedReader. test-str)]
+    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")]
       [(fn []
          (dotimes [_ 100]
-           (. ssr setBufferIndex 0)
-           (ParseToQuotes/findQuoteAsReader ssr)))])))
-
-(defcase* find-endquote :stringispeedreader-as-char-array
-  (fn []
-    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")
-          ssr (StringISpeedReader. test-str)]
-      [(fn []
-         (dotimes [_ 100]
-           (. ssr setBufferIndex 0)
-           (ParseToQuotes/findQuote ssr)))])))
+           (ParseToQuotes/findQuoteAsReader (StringISpeedReader. test-str))))])))
 
 (defgoal move "Moving one of these readers")
 
