@@ -218,27 +218,16 @@ public class SubJson
                     jsonSrc.move(-1); // Pushback for "parseArray()"
                     currState = LBL_PARSE_ARRAY;
                     break dispatch; // "Call" "parseArray()"
-                case ']':
-                    // In correct JSON we should only see this after a '[', which
-                    // will have "called" "parseArray()", so we shouldn't see this here.
-                    throw new IllegalArgumentException("Encountered unexpected ']'.");
                     
                     // Object
                 case '{':
                     jsonSrc.move(-1); // Pushback for "parseObject()"
                     currState = LBL_PARSE_OBJECT;
                     break dispatch; // "Call" "parseObject()"
-                case '}':
-                    // In correct JSON we should only see this after a '{', which
-                    // will have "called" "parseObject()", so we shouldn't see this here.
-                    throw new IllegalArgumentException("Encountered unexpected '}'.");
-                    
-                case ',':
-                    // We should only see a comma while reading an array or object.
-                    throw new IllegalArgumentException("Encountered a comma, but weren't reading an object or array.");
-                    
+
                 default:
-                    throw new IllegalArgumentException("Encountered invalid character in input.");
+                    throw new IllegalArgumentException("Encountered unexpected character '"
+                                                       + (char)currRune + "' in input.");
                 }
 
                 // Fall through to route_value() to finish the value...
