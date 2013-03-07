@@ -292,7 +292,7 @@ public class SubJson
                 valueStack.push(startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
                 skipWhitespace(jsonSrc);
-                currRune = jsonSrc.read(); 
+                currRune = jsonSrc.read();
 
                 // Need to check for '}' in case of empty object. If so,
                 // fall through to PARSEDKV to finish object.
@@ -337,17 +337,35 @@ public class SubJson
         int currRune = jsonSrc.read();
         
         while (true) {
-            switch (currRune) {
-            case -1: 
-                return;
-            case 0x20: // space
-            case 0x09: // tab
-            case 0x0A: // linefeed
-            case 0x0D: // carriage return
-                currRune = jsonSrc.read();
-                break;
-            default:
-                jsonSrc.move(-1);  // Undo the lookahead that was not whitespace.
+            // We can eliminate whitespace+EOF with one quick check: is the rune
+            // <= 0x20 (ASCII space). If it is, we can do more checks to determine
+            // whether it is should indeed be skipped or not. Because often there
+            // is no whitespace where some is allowed, this creates a fast path
+            // to bail out quickly, which registers a speed improvement when
+            // measured.
+            if (currRune <= 0x20) {
+                switch (currRune) {
+                case -1:
+                    // Reaching EOF on a SpeedReader doesn't move the position
+                    // so we don't want to move back in this instance, or we'd
+                    // be trying to undo a position move that didn't happen.
+                    return;
+                case 0x20: // space
+                case 0x09: // tab
+                case 0x0a: // linefeed
+                case 0x0d: // carriage return
+                    currRune = jsonSrc.read();
+                    break;
+                default:
+                    // There are characters below 0x20 that aren't valid whitespace
+                    // but they are not valid in a JSON stream, so we back up and
+                    // assume that whatever was trying to read something next
+                    // will report the error.
+                    jsonSrc.move(-1);
+                    return;
+                }
+            } else {
+                jsonSrc.move(-1);
                 return;
             }
         }
@@ -607,16 +625,26 @@ public class SubJson
         while (true) {
             currRune = jsonSrc.read();
             
-            if (isControlCharacter(currRune)) {
-                throw new IllegalArgumentException("Encountered a control character while parsing a string.");
+            // It turns out that almost all of the "special handling" values we can
+            // receive from read() are below the '"' character in ascii. Since we
+            // expect most of these values to be fairly rare in valid JSON, we can
+            // check for them all at once by first checking if they are less than '"'
+            // and only if so figure out exactly which situation we are in. This
+            // measures as somewhat faster at runtime. Alas, the '\' character is
+            // fairly high in the ASCII range, above most letters, numbers and symbols.
+            if (currRune <= '"') {
+                if (currRune == '"') {
+                    return sb.toString();
+                } else if (isControlCharacter(currRune)) {
+                    throw new IllegalArgumentException("Encountered a control character while parsing a string.");
+                } else if (currRune == -1) {
+                    throw new IllegalArgumentException("Encountered end of input while reading a string.");
+                } else {
+                    // There are a few valid characters below '"' in ascii.
+                    sb.append((char)currRune);
+                }
             } else {
                 switch (currRune) {
-                // End of input
-                case -1:
-                    throw new IllegalArgumentException("Encountered end of input while reading a string.");
-                // End of string
-                case '"':
-                    return sb.toString();
                 // Escape sequence. We'll handle it right here entirely.
                 case '\\':
                     currRune = jsonSrc.read();
