@@ -35,7 +35,12 @@
 
 (deftest recording-test
   (let [r (StringISpeedReader. test-string2)]
-    (.move r 3)
+    (.startRecording r)
+    (is (= "" (.endRecording r)))
+    (.startRecording r)
+    (.read r)
+    (is (= "a" (.endRecording r)))
+    (.move r 2)
     (is (= (int \d) (.read r)))
     (.startRecording r)
     (is (true? (.isRecording r)))
