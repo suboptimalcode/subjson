@@ -4,7 +4,7 @@ import su.boptim.al.subjson.ISpeedReader;
 
 public class StringISpeedReader implements ISpeedReader
 {
-    String s; // The string we're gonna be reading.
+    final String s; // The string we're gonna be reading.
     int position; // Our current position in the string.
 
     int recordingStart; // Index of current recording start, 
@@ -34,7 +34,7 @@ public class StringISpeedReader implements ISpeedReader
 
         // We check for both negative indexes and greater-than-length
         // indexes by doing an unsigned int comparison of the new distance.
-        if ((newPosition & 0xffffffffL) < s.length()) {
+        if ((newPosition & 0xffffffffL) <= s.length()) {
             position = newPosition;
         } else {
             throw new IndexOutOfBoundsException("String index out of range: " 
@@ -59,6 +59,11 @@ public class StringISpeedReader implements ISpeedReader
         } else {
             return false;
         }
+    }
+
+    public String copyRecording()
+    {
+        return new String(s.substring(recordingStart, position));
     }
 
     public String endRecording()

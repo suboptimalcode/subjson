@@ -35,8 +35,13 @@ public interface ISpeedReader
     /* Returns true if there is a recording in progress, false otherwise. */
     public boolean isRecording();
 
-    /* Finish the recording (ending at the stream's current position) and 
-       return the string that was recorded. */
+    /* Return a string containing what has been recorded so far. Does not
+       end the recording. */
+    public String copyRecording();
+
+    /* Finish the recording. The stream will no longer be considered to be
+       recording and any memory that was being kept to support the recording
+       can be freed. The input that was recorded is returned. */
     public String endRecording();
 
 }

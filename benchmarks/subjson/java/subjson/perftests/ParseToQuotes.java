@@ -2,6 +2,7 @@ package subjson.perftests;
 
 import java.io.Reader;
 import subjson.perftests.SpeedReader;
+import su.boptim.al.subjson.ISpeedReader;
 import su.boptim.al.subjson.LightReader;
 
 public class ParseToQuotes
@@ -116,25 +117,6 @@ public class ParseToQuotes
                 idx++;
             }
         }
-    }
-
-    public static int findQuote(ISpeedReader s)
-    {
-        while (true) {
-            final int len = s.getBufferEnd();
-            final char[] buffer = s.getBuffer();
-            
-            for (int pos = s.getBufferIndex(); pos < len; pos++) {
-                if (buffer[pos] == '"') {
-                    s.setBufferIndex(pos+1);
-                    return pos;
-                }
-            }
-
-            if (s.fillBuffer() == 0) break;
-        }
-        
-        return -1;
     }
 }
 

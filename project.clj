@@ -3,8 +3,9 @@
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.4.0"]]
-  :plugins [[perforate "0.3.0"]]
+  :dependencies [[org.clojure/clojure "1.4.0"]
+                 [criterium "0.3.2-SNAPSHOT"]]
+  :plugins [[perforate "0.3.1-SNAPSHOT"]]
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]

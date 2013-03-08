@@ -421,7 +421,7 @@ public class SubJson
     }
 
     /*
-      parseBoolean takes a ISpeedReader that is pointing at a JSON boolean literal
+      parseBoolean takes an ISpeedReader that is pointing at a JSON boolean literal
       and does two things:
       1) Returns the boolean value that literal represents (true or false)
       2) Advances the ISpeedReader to the character after the end of the literal.
@@ -476,7 +476,7 @@ public class SubJson
     }
 
     /* 
-       parseNumber takes a ISpeedReader that is pointing at a JSON number literal
+       parseNumber takes an ISpeedReader that is pointing at a JSON number literal
        and does two things: 
        1) Returns the Number that literal represents
        2) Advances the ISpeedReader to the first non-number character in the JSON
@@ -622,9 +622,11 @@ public class SubJson
             throw new IllegalArgumentException("Attempted to parse a string literal from input that was not pointing at one.");
         }
 
-        while (true) {
+        jsonSrc.startRecording();
+
+        while (true) {            
             currRune = jsonSrc.read();
-            
+
             // It turns out that almost all of the "special handling" values we can
             // receive from read() are below the '"' character in ascii. Since we
             // expect most of these values to be fairly rare in valid JSON, we can
@@ -634,23 +636,35 @@ public class SubJson
             // fairly high in the ASCII range, above most letters, numbers and symbols.
             if (currRune <= '"') {
                 if (currRune == '"') {
-                    return sb.toString();
+                    String result = jsonSrc.endRecording();
+                    result = result.substring(0, result.length()-1);
+
+                    if (sb.length() == 0) {
+                        return result;
+                    } else {
+                        sb.append(result);
+                        return sb.toString();
+                    }
                 } else if (isControlCharacter(currRune)) {
                     throw new IllegalArgumentException("Encountered a control character while parsing a string.");
                 } else if (currRune == -1) {
                     throw new IllegalArgumentException("Encountered end of input while reading a string.");
                 } else {
-                    // There are a few valid characters below '"' in ascii.
-                    sb.append((char)currRune);
+                    // There are a few valid characters below '"' in ascii
+                    // which we handle by doing nothing.
                 }
             } else {
                 switch (currRune) {
                 // Escape sequence. We'll handle it right here entirely.
                 case '\\':
+                    String soFar = jsonSrc.endRecording();
+                    sb.append(soFar.substring(0, soFar.length()-1));
+                    
+                    // Now we decode the escape sequence.
                     currRune = jsonSrc.read();
                     switch (currRune) {
                     case '"': // Escaped quotation mark
-                        sb.append('"');
+                        sb.append('\"');
                         break;
                     case '\\': // Escaped reverse solidus
                         sb.append('\\');
@@ -690,10 +704,12 @@ public class SubJson
                     default:
                         throw new IllegalArgumentException("Encountered invalid input while reading an escape sequence.");
                     }
+
+                    // Finally, restart the recording
+                    jsonSrc.startRecording();
                     break;
                 default:
-                    // Just some regular old character.
-                    sb.append((char)currRune);
+                    // Just some regular old character, don't need to do anything.
                     break;
                 }
             }
