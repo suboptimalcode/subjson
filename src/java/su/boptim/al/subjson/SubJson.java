@@ -639,6 +639,9 @@ public class SubJson
                     String result = jsonSrc.endRecording();
                     result = result.substring(0, result.length()-1);
 
+                    // If we have not had to add anything to the StringBuilder by
+                    // now, then the entire string is the one in result, so just
+                    // return it without extra copying.
                     if (sb.length() == 0) {
                         return result;
                     } else {
@@ -688,18 +691,25 @@ public class SubJson
                         sb.append('\t');
                         break;
                     case 'u': // Escaped Unicode character
-                        StringBuilder codepoint = new StringBuilder();
+                        int cp = 0;
                         
                         for (int i = 0; i < 4; i++) {
                             currRune = jsonSrc.read();
+
+                            // Note: '0'-'9' are 0x30-0x39
+                            //       'a'-'f' are 0x61-0x66
+                            //       'A'-'F' are 0x41-0x46
+                            // So lowest 4 bits of ascii code for a hex digit
+                            // are the digit's value, as long as you add 9 for
+                            // values in the 0x41-0x66 range.
                             if (isHexDigit(currRune)) {
-                                codepoint.appendCodePoint(currRune);
+                                cp = (cp << 4) | ((0xf & currRune) + (currRune <= '9' ? 0 : 9));
                             } else {
                                 throw new IllegalArgumentException("Encountered invalid input while reading a Unicode escape sequence.");
                             }
                         }
                         
-                        sb.appendCodePoint(Integer.parseInt(codepoint.toString(), 16));
+                        sb.appendCodePoint(cp);
                         break;
                     default:
                         throw new IllegalArgumentException("Encountered invalid input while reading an escape sequence.");
