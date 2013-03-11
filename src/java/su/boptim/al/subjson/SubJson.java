@@ -240,12 +240,13 @@ public class SubJson
                 if (valueStack.isEmpty()) {
                     return latestValue;
                 } else {
-                    if (isArray(valueStack.peek())) {
+                    Object valueStackTop = valueStack.peek();
+                    if (isArray(valueStackTop)) {
                         // We had to parse a value while parsing an array
-                        arrayAppend(valueStack.peek(), latestValue);
+                        arrayAppend(valueStackTop, latestValue);
                         currState = LBL_PA_PARSEDVALUE;
-                    } else if (isObject(valueStack.peek())) {
-                        objectInsert(valueStack.peek(), keyStack.pop(), latestValue);
+                    } else if (isObject(valueStackTop)) {
+                        objectInsert(valueStackTop, keyStack.pop(), latestValue);
                         currState = LBL_PO_PARSEDKV;
                     }
                     break dispatch;
