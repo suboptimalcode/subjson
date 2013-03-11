@@ -636,7 +636,8 @@ public class SubJson
             // fairly high in the ASCII range, above most letters, numbers and symbols.
             if (currRune <= '"') {
                 if (currRune == '"') {
-                    String result = jsonSrc.endRecording();
+                    String result = jsonSrc.copyRecording();
+                    jsonSrc.endRecording();
                     result = result.substring(0, result.length()-1);
 
                     // If we have not had to add anything to the StringBuilder by
@@ -660,7 +661,8 @@ public class SubJson
                 switch (currRune) {
                 // Escape sequence. We'll handle it right here entirely.
                 case '\\':
-                    String soFar = jsonSrc.endRecording();
+                    String soFar = jsonSrc.copyRecording();
+                    jsonSrc.endRecording();
                     sb.append(soFar.substring(0, soFar.length()-1));
                     
                     // Now we decode the escape sequence.

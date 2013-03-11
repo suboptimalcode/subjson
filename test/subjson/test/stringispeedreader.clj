@@ -36,17 +36,18 @@
 (deftest recording-test
   (let [r (StringISpeedReader. test-string2)]
     (.startRecording r)
-    (is (= "" (.endRecording r)))
+    (is (= "" (.copyRecording r)))
     (.startRecording r)
     (.read r)
-    (is (= "a" (.endRecording r)))
+    (is (= "a" (.copyRecording r)))
     (.move r 2)
     (is (= (int \d) (.read r)))
     (.startRecording r)
     (is (true? (.isRecording r)))
     (.move r 3)
     (is (true? (.isRecording r)))
-    (is (= "efg" (.endRecording r)))
+    (is (= "efg" (.copyRecording r)))
+    (.endRecording r)
     (is (false? (.isRecording r)))
     (is (= (int \h) (.read r)))
     ;; Test can move backwards while recording.
@@ -54,4 +55,4 @@
     (.move r 6)
     (is (= (int \o) (.read r)))
     (.move r -2)
-    (is (= "ijklm" (.endRecording r)))))
+    (is (= "ijklm" (.copyRecording r)))))

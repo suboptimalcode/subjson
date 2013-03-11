@@ -41,7 +41,7 @@ public interface ISpeedReader
 
     /* Finish the recording. The stream will no longer be considered to be
        recording and any memory that was being kept to support the recording
-       can be freed. The input that was recorded is returned. */
-    public String endRecording();
+       can be freed. */
+    public void endRecording();
 
 }

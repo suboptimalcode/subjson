@@ -63,19 +63,16 @@ public class StringISpeedReader implements ISpeedReader
 
     public String copyRecording()
     {
-        return new String(s.substring(recordingStart, position));
-    }
-
-    public String endRecording()
-    {
-        String recordedString = s.substring(recordingStart, position);
-        recordingStart = -1; // End recording.
-
         // We return a copy of the string. This constructor will use
         // System.arraycopy under the hood to be fast, and by not reusing
         // the storage of the input string, the input string won't be pinned
         // into memory because it is needed as the backing storage for a
         // small string we parsed.
-        return new String(recordedString);
+        return new String(s.substring(recordingStart, position));
+    }
+
+    public void endRecording()
+    {
+        recordingStart = -1; // End recording.
     }
 }
