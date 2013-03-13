@@ -2,7 +2,9 @@
   (:use perforate.core)
   (:require [clojure.java.io :as io]
             [cheshire.core :as cheshire])
-  (:import [su.boptim.al.subjson SubJson StringISpeedReader]
+  (:import [su.boptim.al.subjson SubJson SubJson2 StringISpeedReader
+            UnsynchronizedStringReader]
+           [java.io StringReader BufferedReader]
            [com.fasterxml.jackson.databind ObjectMapper]))
 
 (set! *warn-on-reflection* true)
@@ -17,6 +19,13 @@
                        io/resource slurp)]
       [(fn [] (dotimes [_ reps]
                 (SubJson/parse (StringISpeedReader. json-src))))])))
+
+(defcase* small-parse-test :subjson2
+  (fn []
+    (let [json-src (-> "jsonorg_examples/menu.json"
+                       io/resource slurp)]
+      [(fn [] (dotimes [_ reps]
+                (SubJson2/parse (UnsynchronizedStringReader. json-src))))])))
 
 (defcase* small-parse-test :cheshire
   (fn []
@@ -50,6 +59,13 @@
                        io/resource slurp)]
       [(fn [] (dotimes [_ reps]
                 (SubJson/parse (StringISpeedReader. ^String json-src))))])))
+
+(defcase* large-parse-test :subjson2
+  (fn []
+    [(let [json-src (-> "jsonorg_examples/web-app.json"
+                        io/resource slurp)]
+       (fn [] (dotimes [_ reps]
+                (SubJson2/parse (UnsynchronizedStringReader. json-src)))))]))
 
 (defcase* large-parse-test :cheshire
   (fn []
