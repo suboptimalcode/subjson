@@ -4,6 +4,17 @@ import java.io.Reader;
 import java.io.IOException;
 import java.lang.UnsupportedOperationException;
 
+/*
+  This class is an implementation of java.io.Reader for Strings, but it
+  does a few things differently from StringReader. First, it is not
+  synchronized, which gives measurable speed benefits. Second, it does not
+  support the close() function, which again, gives a speed boost to the
+  other operations, which do not have to check if the stream is still open.
+
+  So, unless you know that you aren't going to need synchronization and close(),
+  you should probably not use this. However, SubJson.parse() really doesn't use
+  those, so when given a String, it can be advantageous to use this Reader.
+ */
 public class UnsynchronizedStringReader extends Reader
 {
     String string;
