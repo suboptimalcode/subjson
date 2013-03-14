@@ -21,6 +21,8 @@ public class UnsynchronizedStringReader extends Reader
     {
         int numChars = Math.min(len, string.length() - next);
         string.getChars(next, next+numChars, cbuf, off);
+        next += numChars;
+
         return numChars;
     }
 
