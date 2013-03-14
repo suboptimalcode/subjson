@@ -619,15 +619,45 @@ public class SubJson2
     */
     private static String parseString(Reader jsonSrc) throws IOException
     {
+        // There's a measurable performance benefit to building a
+        // string out of chunks, instead of char by char, so we'll use
+        // this buffer to copy into from the Reader and append to the
+        // StringBuilder whenever it is full.  Some care must be taken
+        // to append its contents when character substitutions are
+        // made due to escaping. This is also why any Reader we parse
+        // from must return true from markSupported().
+        //
+        // Note that the buffer is only copied into when we've seen as
+        // many characters as we said the mark should buffer. bufferedCount
+        // is used to help us keep track of when that is, so we can do
+        // the copy.
+        final int BUFFER_SIZE = 32;
+        final char[] cbuf = new char[BUFFER_SIZE];
+        int bufferedCount = 0;
+
         StringBuilder sb = new StringBuilder();
         int currRune = jsonSrc.read();
-        
+
         if (currRune != '"') {
             throw new IllegalArgumentException("Attempted to parse a string literal from input that was not pointing at one.");
         }
 
-        while (true) {            
+        jsonSrc.mark(BUFFER_SIZE);
+        while (true) {    
+            // Need to check if our buffer filled up, and if so copy it off
+            // to the StringBuilder.
+            if (bufferedCount == BUFFER_SIZE) {
+                jsonSrc.reset();
+                jsonSrc.read(cbuf, 0, bufferedCount);
+                sb.append(cbuf, 0, bufferedCount);
+
+                // Restart the buffering.
+                jsonSrc.mark(BUFFER_SIZE);
+                bufferedCount = 0;
+            }
+        
             currRune = jsonSrc.read();
+            bufferedCount++;
 
             // It turns out that almost all of the "special handling" values we can
             // receive from read() are below the '"' character in ascii. Since we
@@ -638,19 +668,44 @@ public class SubJson2
             // fairly high in the ASCII range, above most letters, numbers and symbols.
             if (currRune <= '"') {
                 if (currRune == '"') {
-                    return sb.toString();
+                    jsonSrc.reset(); // Go back to beginning of last "buffer" to copy.
+                    // What would we even do if return != bufferedCount-1?
+                    jsonSrc.read(cbuf, 0, bufferedCount-1); // Don't include the '"'
+                    jsonSrc.skip(1); // Skip past the '"' we saw.
+                    
+                    // If we haven't had to copy to the builder yet, just return
+                    // the string without doing extraneous copies through the
+                    // StringBuilder.
+                    if (sb.length() == 0) {
+                        return new String(cbuf, 0, bufferedCount-1);
+                    } else {
+                        sb.append(cbuf, 0, bufferedCount-1);
+                        return sb.toString();
+                    }
                 } else if (isControlCharacter(currRune)) {
                     throw new IllegalArgumentException("Encountered a control character while parsing a string.");
                 } else if (currRune == -1) {
                     throw new IllegalArgumentException("Encountered end of input while reading a string.");
                 } else {
                     // There are a few valid characters below '"' in ascii
-                    sb.append((char)currRune);
+                    // which we simply move past and will copy on the next
+                    // buffer spill.
                 }
             } else {
                 switch (currRune) {
                 // Escape sequence. We'll handle it right here entirely.
                 case '\\':
+                    // Escape characters means we can't just copy from the
+                    // string source to the returned string, so we stop
+                    // the buffering, copy what we've parsed so far to the
+                    // stringbuilder, append the escaped character to the
+                    // stringbuilder, and then resume buffering anew after.
+ 
+                    jsonSrc.reset();
+                    jsonSrc.read(cbuf, 0, bufferedCount-1);
+                    sb.append(cbuf, 0, bufferedCount-1);
+                    jsonSrc.skip(1); // Skip past the '/' we already saw.
+
                     // Now we decode the escape sequence.
                     currRune = jsonSrc.read();
                     switch (currRune) {
@@ -702,10 +757,14 @@ public class SubJson2
                     default:
                         throw new IllegalArgumentException("Encountered invalid input while reading an escape sequence.");
                     }
+                    
+                    // Finally, restart the buffering.
+                    jsonSrc.mark(BUFFER_SIZE);
+                    bufferedCount = 0;
                     break;
                 default:
-                    // Just some regular old character, just append to SB.x
-                    sb.append((char)currRune);
+                    // Just some regular old character, just move past it so it
+                    // will get copied on the next buffer spill.
                     break;
                 }
             }
