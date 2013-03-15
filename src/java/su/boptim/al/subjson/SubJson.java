@@ -3,6 +3,8 @@ package su.boptim.al.subjson;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.io.Reader;
+import java.io.IOException;
 
 public class SubJson
 {
@@ -16,6 +18,19 @@ public class SubJson
     static final int LBL_PO_PARSEDKV = 6;
     static final int LBL_ROUTE_VALUE = 7;
     
+    /* 
+       Takes a Reader and returns what read() will return,
+       but without actually moving the stream forward. The Reader
+       must return true when markSupported() is called.
+     */
+    private static int peek(Reader r) throws IOException
+    {
+        r.mark(1);
+        int retVal = r.read();
+        r.reset();
+        return retVal;
+    }
+
     public static boolean isDigit(int rune) 
     {
         if (rune >= '0' && rune <= '9') return true;
@@ -96,9 +111,8 @@ public class SubJson
     }
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
-    // and the ISpeedReader must buffer at least one character for backwards
-    // movement.
-    public static Object parse(ISpeedReader jsonSrc) throws Exception
+    // and the Reader must return true when markSupported() is called.
+    public static Object parse(Reader jsonSrc) throws Exception, IOException
     {
         ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
         ArrayDeque<Object> keyStack = new ArrayDeque<Object>(); // For parsing KV pairs in objects.
@@ -165,7 +179,7 @@ public class SubJson
             dispatch:
             switch (currState) {
             case LBL_PARSE_VALUE:
-                currRune = jsonSrc.read();
+                currRune = peek(jsonSrc);
 
                 switch (currRune) {
                     // whitespace
@@ -178,7 +192,6 @@ public class SubJson
                     
                     // null
                 case 'n': 
-                    jsonSrc.move(-1); // Undo the lookahead that let us know it was true.
                     parseNull(jsonSrc);
 
                     latestValue = null;
@@ -187,7 +200,6 @@ public class SubJson
                     // true & false
                 case 't':
                 case 'f':
-                    jsonSrc.move(-1); // Undo the lookahead that let us know it was true.
                     latestValue = parseBoolean(jsonSrc);
                     break; // Jump to cleanup code after inner switch.
                     
@@ -203,25 +215,21 @@ public class SubJson
                 case '7':
                 case '8':
                 case '9':
-                    jsonSrc.move(-1); // Undo the lookahead that told us this was a number.
                     latestValue = parseNumber(jsonSrc);
                     break; // Jump to cleanup code after inner switch
                     
                     // String
                 case '"':
-                    jsonSrc.move(-1);
                     latestValue = parseString(jsonSrc);
                     break; // Jump to cleanup code after inner switch
                     
                     // Array
                 case '[':
-                    jsonSrc.move(-1); // Pushback for "parseArray()"
                     currState = LBL_PARSE_ARRAY;
                     break dispatch; // "Call" "parseArray()"
                     
                     // Object
                 case '{':
-                    jsonSrc.move(-1); // Pushback for "parseObject()"
                     currState = LBL_PARSE_OBJECT;
                     break dispatch; // "Call" "parseObject()"
 
@@ -259,22 +267,20 @@ public class SubJson
                 valueStack.push(startArray());
             case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
                 skipWhitespace(jsonSrc);
-                currRune = jsonSrc.read();
+                currRune = peek(jsonSrc);
 
                 // Need to check for empty array, where an attempt to read a 
                 // value would fail.
-                jsonSrc.move(-1); // Pushback for "parseValue()" or finish array.
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an array.");
                 } else if (currRune != ']') {
                     currState = LBL_PARSE_VALUE; // "Call" "parseValue()"
                     break dispatch;
                 }                     
-                // currRune == ']', so fall through to finish array
+                // currRune == ']', so fall through to continue/finish array
             case LBL_PA_PARSEDVALUE:         // ... which will know to return here from stack top.
                 skipWhitespace(jsonSrc);
-                currRune = jsonSrc.read();
-                jsonSrc.move(-1); // Pushback for parseChar().
+                currRune = peek(jsonSrc);
                 if (currRune == ',') {
                     parseChar(jsonSrc, ',');
                     currState = LBL_PA_STARTVALUE;
@@ -293,11 +299,10 @@ public class SubJson
                 valueStack.push(startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
                 skipWhitespace(jsonSrc);
-                currRune = jsonSrc.read();
+                currRune = peek(jsonSrc);
 
                 // Need to check for '}' in case of empty object. If so,
                 // fall through to PARSEDKV to finish object.
-                jsonSrc.move(-1); // Pushback for "parseValue()" or finish object.
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an object.");
                 } else if (currRune != '}') {
@@ -311,8 +316,7 @@ public class SubJson
                 // currRune == '}' so fall through to finish object
             case LBL_PO_PARSEDKV:            // ... which will know to return here from stack top.
                 skipWhitespace(jsonSrc);
-                currRune = jsonSrc.read();
-                jsonSrc.move(-1); // Pushback for readChar().
+                currRune = peek(jsonSrc);
                 if (currRune == ',') {
                     parseChar(jsonSrc, ',');
                     currState = LBL_PO_STARTKV;
@@ -330,12 +334,12 @@ public class SubJson
     }
 
     /*
-      Given a ISpeedReader at any point, skips past any whitespace (space, tab, CR, LF)
+      Given a Reader at any point, skips past any whitespace (space, tab, CR, LF)
       so that the next character read will be something that is not whitespace (or EOF).
     */
-    private static void skipWhitespace(ISpeedReader jsonSrc)
+    private static void skipWhitespace(Reader jsonSrc) throws IOException
     {
-        int currRune = jsonSrc.read();
+        int currRune = peek(jsonSrc);
         
         while (true) {
             // We can eliminate whitespace+EOF with one quick check: is the rune
@@ -346,39 +350,36 @@ public class SubJson
             // measured.
             if (currRune <= 0x20) {
                 switch (currRune) {
-                case -1:
-                    // Reaching EOF on a SpeedReader doesn't move the position
-                    // so we don't want to move back in this instance, or we'd
-                    // be trying to undo a position move that didn't happen.
-                    return;
                 case 0x20: // space
                 case 0x09: // tab
                 case 0x0a: // linefeed
                 case 0x0d: // carriage return
-                    currRune = jsonSrc.read();
+                    jsonSrc.read();
+                    currRune = peek(jsonSrc);
                     break;
                 default:
                     // There are characters below 0x20 that aren't valid whitespace
-                    // but they are not valid in a JSON stream, so we back up and
-                    // assume that whatever was trying to read something next
-                    // will report the error.
-                    jsonSrc.move(-1);
+                    // but they are not valid in a JSON stream, so we simply
+                    // assume that whatever will try to read something next (in
+                    // the main parse loop) will report the error if the next rune
+                    // would cause an error, should reading need to continue.
                     return;
                 }
             } else {
-                jsonSrc.move(-1);
+                // Peeked character is definitely not whitespace, so we've fulfilled
+                // our mission and just return.
                 return;
             }
         }
     }
 
     /*
-      Given a ISpeedReader, attempts to read the next character from it and check that
+      Given a Reader, attempts to read the next character from it and check that
       it is the character given as the second argument. If it is, it simply returns
-      and the ISpeedReader will be on the next character after the one just read. 
+      and the Reader will be on the next character after the one just read. 
       Otherwise, throws a descriptive error.
      */
-    private static void parseChar(ISpeedReader jsonSrc, char theChar)
+    private static void parseChar(Reader jsonSrc, char theChar) throws IOException
     {
         int currRune = jsonSrc.read();
         if (currRune == theChar) {
@@ -393,12 +394,12 @@ public class SubJson
     }
 
     /*
-      parseNull takes a ISpeedReader that is pointing at a JSON null literal and
-      advances the ISpeedReader to the character after the end of the literal, 
+      parseNull takes a Reader that is pointing at a JSON null literal and
+      advances the Reader to the character after the end of the literal, 
       while checking that the null literal is correctly written and providing errors
       if not.
     */
-    private static void parseNull(ISpeedReader jsonSrc)
+    private static void parseNull(Reader jsonSrc) throws IOException
     {   
         // This loop only executes once, use it to simulate goto with a break.
         while (true) {
@@ -422,12 +423,12 @@ public class SubJson
     }
 
     /*
-      parseBoolean takes an ISpeedReader that is pointing at a JSON boolean literal
+      parseBoolean takes an Reader that is pointing at a JSON boolean literal
       and does two things:
       1) Returns the boolean value that literal represents (true or false)
-      2) Advances the ISpeedReader to the character after the end of the literal.
+      2) Advances the Reader to the character after the end of the literal.
     */
-    private static Boolean parseBoolean(ISpeedReader jsonSrc)
+    private static Boolean parseBoolean(Reader jsonSrc) throws IOException
     {
         int currRune = jsonSrc.read();
         switch (currRune) {
@@ -470,25 +471,25 @@ public class SubJson
             throw new IllegalArgumentException("Encountered invalid input while attempting to read the boolean literal 'false'.");
         default:
             // This code should never execute unless there is a bug; this function
-            // should only be called if the next 4 or 5 characters in the ISpeedReader
+            // should only be called if the next 4 or 5 characters in the Reader
             // will be one of the two boolean literals.
             throw new IllegalArgumentException("Attempted to parse a boolean literal out of input that was not pointing at one.");
         }
     }
 
     /* 
-       parseNumber takes an ISpeedReader that is pointing at a JSON number literal
+       parseNumber takes an Reader that is pointing at a JSON number literal
        and does two things: 
        1) Returns the Number that literal represents
-       2) Advances the ISpeedReader to the first non-number character in the JSON
+       2) Advances the Reader to the first non-number character in the JSON
           source (that is, a read() after this function will return the next character
           after the number literal). Basically clips the number off the front of
           the stream.
     */
-    private static Number parseNumber(ISpeedReader jsonSrc)
+    private static Number parseNumber(Reader jsonSrc) throws IOException
     {
         StringBuilder sb = new StringBuilder();
-        int currRune = jsonSrc.read();
+        int currRune = peek(jsonSrc);
 
         // This while loop will only execute once, we use it
         // to get access to the break statement to jump to the
@@ -503,7 +504,8 @@ public class SubJson
                 // We'll append the negation to the string and move on to
                 // look for the first digit.
                 sb.appendCodePoint(currRune); 
-                currRune = jsonSrc.read();
+                jsonSrc.skip(1);
+                currRune = peek(jsonSrc);
             }
             
             // If we saw a '-' and the next character is not a digit or is EOF, 
@@ -517,7 +519,8 @@ public class SubJson
             // is just before a decimal point or exponentiation.
             boolean sawLeadingZero = currRune == '0' ? true : false;
             sb.appendCodePoint(currRune);
-            currRune = jsonSrc.read();
+            jsonSrc.skip(1);
+            currRune = peek(jsonSrc);
             
             if (sawLeadingZero && isDigit(currRune)) {
                 throw new NumberFormatException("While attempting to parse a number, there was a leading zero not immediately followed by a decimal point or exponentiation.");
@@ -530,7 +533,8 @@ public class SubJson
             // we move right on to the next test.
             while (isDigit(currRune)) {
                 sb.appendCodePoint(currRune);
-                currRune = jsonSrc.read();
+                jsonSrc.skip(1);
+                currRune = peek(jsonSrc);
             }
             
             if (currRune == -1) break; // EOF, but enough input to parse a number.
@@ -542,7 +546,8 @@ public class SubJson
             if (sawDecimal) {
                 // We saw a decimal point, so add it on and continue reading digits.
                 sb.appendCodePoint(currRune);
-                currRune = jsonSrc.read();
+                jsonSrc.skip(1);
+                currRune = peek(jsonSrc);
                 
                 // We must read at least one digit before moving on.
                 // Also handles EOF.
@@ -552,7 +557,8 @@ public class SubJson
                 
                 while (isDigit(currRune)) {
                     sb.appendCodePoint(currRune);
-                    currRune = jsonSrc.read();
+                    jsonSrc.skip(1);
+                    currRune = peek(jsonSrc);
                 }
             }
             
@@ -565,7 +571,8 @@ public class SubJson
                 // by + or -.
                 sawExponent = true;
                 sb.appendCodePoint(currRune);
-                currRune = jsonSrc.read();
+                jsonSrc.skip(1);
+                currRune = peek(jsonSrc);
             } else break; // Handles EOF and non-digit, but enough to make number.
             
             // If we reach this point, then we saw e or E and did another read().
@@ -574,7 +581,8 @@ public class SubJson
             if (currRune == '+' || currRune == '-') {
                 // Just tack it on and continue on to the next character.
                 sb.appendCodePoint(currRune);
-                currRune = jsonSrc.read();
+                jsonSrc.skip(1);
+                currRune = peek(jsonSrc);
             }
             
             // Now currRune is past any e/E or +/- that would be valid. currRune must
@@ -582,7 +590,8 @@ public class SubJson
             // first one of those, then we've reached the end of the number.
             while (isDigit(currRune)) {
                 sb.appendCodePoint(currRune);
-                currRune = jsonSrc.read();
+                jsonSrc.skip(1);
+                currRune = peek(jsonSrc);
             }
             
             break; // We have to break out of the infinite loop every time.
@@ -597,36 +606,58 @@ public class SubJson
             retVal = new Integer(sb.toString());
         }
         
-        // We had to see a non-number character to know we were past the end of
-        // the number, so if we didn't see an EOF, move back so that whoever 
-        // needs it next can have it available.
-        if (currRune != -1) {
-            jsonSrc.move(-1); 
-        }
         return retVal;
     }
 
     /* 
-       parseString takes a ISpeedReader that is pointing at a JSON string literal
+       parseString takes a Reader that is pointing at a JSON string literal
        and does two things: 
        1) Returns the String that literal represents
-       2) Advances the ISpeedReader to the first character after the end of the 
+       2) Advances the Reader to the first character after the end of the 
           string in the JSON source. Basically clips the string off the front
           of the stream.
     */
-    private static String parseString(ISpeedReader jsonSrc)
+    private static String parseString(Reader jsonSrc) throws IOException
     {
+        // There's a measurable performance benefit to building a
+        // string out of chunks, instead of char by char, so we'll use
+        // this buffer to copy into from the Reader and append to the
+        // StringBuilder whenever it is full.  Some care must be taken
+        // to append its contents when character substitutions are
+        // made due to escaping. This is also why any Reader we parse
+        // from must return true from markSupported().
+        //
+        // Note that the buffer is only copied into when we've seen as
+        // many characters as we said the mark should buffer. bufferedCount
+        // is used to help us keep track of when that is, so we can do
+        // the copy.
+        final int BUFFER_SIZE = 32;
+        final char[] cbuf = new char[BUFFER_SIZE];
+        int bufferedCount = 0;
+
         StringBuilder sb = new StringBuilder();
         int currRune = jsonSrc.read();
-        
+
         if (currRune != '"') {
             throw new IllegalArgumentException("Attempted to parse a string literal from input that was not pointing at one.");
         }
 
-        jsonSrc.startRecording();
+        jsonSrc.mark(BUFFER_SIZE);
+        while (true) {    
+            // Need to check if our buffer filled up, and if so copy it off
+            // to the StringBuilder.
+            if (bufferedCount == BUFFER_SIZE) {
+                jsonSrc.reset();
+                jsonSrc.read(cbuf, 0, bufferedCount);
+                sb.append(cbuf, 0, bufferedCount);
 
-        while (true) {            
+                // Restart the buffering.
+                jsonSrc.mark(BUFFER_SIZE);
+                bufferedCount = 0;
+            }
+        
             currRune = jsonSrc.read();
+            bufferedCount++;
 
             // It turns out that almost all of the "special handling" values we can
             // receive from read() are below the '"' character in ascii. Since we
@@ -637,17 +668,18 @@ public class SubJson
             // fairly high in the ASCII range, above most letters, numbers and symbols.
             if (currRune <= '"') {
                 if (currRune == '"') {
-                    String result = jsonSrc.copyRecording();
-                    jsonSrc.endRecording();
-                    result = result.substring(0, result.length()-1);
-
-                    // If we have not had to add anything to the StringBuilder by
-                    // now, then the entire string is the one in result, so just
-                    // return it without extra copying.
+                    jsonSrc.reset(); // Go back to beginning of last "buffer" to copy.
+                    // What would we even do if return != bufferedCount-1?
+                    jsonSrc.read(cbuf, 0, bufferedCount-1); // Don't include the '"'
+                    jsonSrc.skip(1); // Skip past the '"' we saw.
+                    
+                    // If we haven't had to copy to the builder yet, just return
+                    // the string without doing extraneous copies through the
+                    // StringBuilder.
                     if (sb.length() == 0) {
-                        return result;
+                        return new String(cbuf, 0, bufferedCount-1);
                     } else {
-                        sb.append(result);
+                        sb.append(cbuf, 0, bufferedCount-1);
                         return sb.toString();
                     }
                 } else if (isControlCharacter(currRune)) {
@@ -656,16 +688,24 @@ public class SubJson
                     throw new IllegalArgumentException("Encountered end of input while reading a string.");
                 } else {
                     // There are a few valid characters below '"' in ascii
-                    // which we handle by doing nothing.
+                    // which we simply move past and will copy on the next
+                    // buffer spill.
                 }
             } else {
                 switch (currRune) {
                 // Escape sequence. We'll handle it right here entirely.
                 case '\\':
-                    String soFar = jsonSrc.copyRecording();
-                    jsonSrc.endRecording();
-                    sb.append(soFar.substring(0, soFar.length()-1));
-                    
+                    // Escape characters means we can't just copy from the
+                    // string source to the returned string, so we stop
+                    // the buffering, copy what we've parsed so far to the
+                    // stringbuilder, append the escaped character to the
+                    // stringbuilder, and then resume buffering anew after.
+ 
+                    jsonSrc.reset();
+                    jsonSrc.read(cbuf, 0, bufferedCount-1);
+                    sb.append(cbuf, 0, bufferedCount-1);
+                    jsonSrc.skip(1); // Skip past the '/' we already saw.
+
                     // Now we decode the escape sequence.
                     currRune = jsonSrc.read();
                     switch (currRune) {
@@ -717,12 +757,14 @@ public class SubJson
                     default:
                         throw new IllegalArgumentException("Encountered invalid input while reading an escape sequence.");
                     }
-
-                    // Finally, restart the recording
-                    jsonSrc.startRecording();
+                    
+                    // Finally, restart the buffering.
+                    jsonSrc.mark(BUFFER_SIZE);
+                    bufferedCount = 0;
                     break;
                 default:
-                    // Just some regular old character, don't need to do anything.
+                    // Just some regular old character, just move past it so it
+                    // will get copied on the next buffer spill.
                     break;
                 }
             }

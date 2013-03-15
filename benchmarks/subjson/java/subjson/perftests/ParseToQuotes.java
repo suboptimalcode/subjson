@@ -1,9 +1,6 @@
 package subjson.perftests;
 
 import java.io.Reader;
-import subjson.perftests.SpeedReader;
-import su.boptim.al.subjson.ISpeedReader;
-import su.boptim.al.subjson.LightReader;
 
 public class ParseToQuotes
 {
@@ -51,72 +48,6 @@ public class ParseToQuotes
         }
 
         return -1;
-    }
-
-    public static int findQuote(LightReader s)
-    {
-        int currRune = -1;
-        int idx = 0; 
-
-        while (true) {
-            currRune = s.read();
-            
-            if (currRune == -1) return -1;
-            else if (currRune == '"') return idx;
-            else {
-                idx++;
-            }
-        }
-    }
-
-    public static int findQuoteAsReader(SpeedReader s)
-    {
-        int currRune = -1;
-        int idx = 0; 
-                                                
-        while (true) {
-            currRune = s.read();
-            
-            if (currRune == -1) return -1;
-            else if (currRune == '"') return idx;
-            else {
-                idx++;
-            }
-        }
-    }
-
-    public static int findQuote(SpeedReader s)
-    {
-        while (true) {
-            final int len = s.bufferEnd;
-            
-            for (int pos = s.bufferIndex; pos < len; pos++) {
-                if (s.buffer[pos] == '"') {
-                    s.bufferIndex = pos+1;
-                    return pos;
-                }
-            }
-
-            if (s.fillBuffer() == 0) break;
-        }
-        
-        return -1;
-    }
-
-    public static int findQuoteAsReader(ISpeedReader s)
-    {
-        int currRune = -1;
-        int idx = 0; 
-                                                
-        while (true) {
-            currRune = s.read();
-            
-            if (currRune == -1) return -1;
-            else if (currRune == '"') return idx;
-            else {
-                idx++;
-            }
-        }
     }
 }
 

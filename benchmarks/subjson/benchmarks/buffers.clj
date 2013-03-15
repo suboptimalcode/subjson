@@ -1,10 +1,10 @@
 (ns subjson.benchmarks.buffers
   (:use perforate.core)
   (:require [clojure.java.io :as io])
-  (:import [su.boptim.al.subjson LightStringReader ISpeedReader
-            StringISpeedReader UnsynchronizedStringReader]
+  (:import [su.boptim.al.subjson UnsynchronizedStringReader]
            [subjson.perftests ParseToQuotes]
-           [java.io StringReader PushbackReader BufferedReader CharArrayReader]))
+           [java.io StringReader PushbackReader
+            BufferedReader CharArrayReader]))
 
 ;; http://stackoverflow.com/questions/8894258/fastest-way-to-iterate-over-all-the-chars-in-a-string
 
@@ -29,14 +29,6 @@
            (let [char-array (.toCharArray test-str)]
              (dotimes [_ 100] (ParseToQuotes/findQuote char-array)))))])))
 
-(defcase* find-endquote :stringreader
-  (fn []
-    (let [test-str  (str (apply str (repeat strreps "ABCDEF")) "\"")]
-      [(fn []
-         (let [test-str (str (apply str (repeat strreps "ABCDEF")))]
-           (dotimes [_ 100]
-             (ParseToQuotes/findQuote (StringReader. test-str)))))])))
-
 (defcase* find-endquote :bufferedreader
   (fn []
     (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")]
@@ -46,45 +38,10 @@
              (ParseToQuotes/findQuote (BufferedReader.
                                        (CharArrayReader. (.toCharArray test-str)))))))])))
 
-#_(defcase* find-endquote :lightstringreader
-  (fn []
-    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")
-          lsr (LightStringReader. test-str)]
-      [(fn []
-         (let [lsr (LightStringReader. test-str)]
-           (dotimes [_ 100]
-             (ParseToQuotes/findQuote lsr)
-             (.move lsr (int -6000)))))])))
-
-(defcase* find-endquote :lightstringreader
-  (fn []
-    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")]
-      [(fn []
-         (dotimes [_ 100]
-           (ParseToQuotes/findQuote (LightStringReader. test-str))))])))
-
 (defcase* find-endquote :unsynchronizedstringreader
   (fn []
     [(let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")]
        (fn []
          (dotimes [_ 100]
            (ParseToQuotes/findQuote (UnsynchronizedStringReader. test-str)))))]))
-
-(defcase* find-endquote :stringispeedreader
-  (fn []
-    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")]
-      [(fn []
-         (dotimes [_ 100]
-           (ParseToQuotes/findQuoteAsReader (StringISpeedReader. test-str))))])))
-
-(defgoal move "Moving one of these readers")
-
-(defcase* move :lightstringreader
-  (fn []
-    (let [test-str (str (apply str (repeat strreps "ABCDEF")) "\"")
-          lsr (LightStringReader. test-str)]
-      [(fn []
-         (dotimes [_ 1000]
-           (.move lsr 1)
-           (.move lsr -1)))])))
 
