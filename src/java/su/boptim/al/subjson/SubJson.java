@@ -18,6 +18,8 @@ public class SubJson
     static final int LBL_PO_PARSEDKV = 6;
     static final int LBL_ROUTE_VALUE = 7;
     
+    static final BuildPolicy defaultBP = new DefaultBuildPolicy();
+
     /* 
        Takes a Reader and returns what read() will return,
        but without actually moving the stream forward. The Reader
@@ -66,53 +68,16 @@ public class SubJson
         }
     }
 
-    public static boolean isArray(Object o)
+    public static Object parse(Reader jsonSrc) 
+        throws Exception, IOException
     {
-        return o instanceof ArrayList<?>;
-    }
-
-    public static boolean isObject(Object o)
-    {
-        return o instanceof HashMap<?,?>;
-    }
-
-    public static Object startArray()
-    {
-        return new ArrayList();
-    }
-
-    @SuppressWarnings("unchecked")
-    public static void arrayAppend(Object a, Object value)
-    {
-        ArrayList<Object> arr = (ArrayList<Object>)a;
-        arr.add(value);
-    }
-
-    public static Object finishArray(Object arr)
-    {
-        return arr;
-    }
-
-    public static Object startObject()
-    {
-        return new HashMap<String,Object>();
-    }
-
-    @SuppressWarnings("unchecked")
-    public static void objectInsert(Object o, Object key, Object value)
-    {
-        HashMap<String,Object> obj = (HashMap<String,Object>)o;
-        obj.put((String)key, value);
-    }
-
-    public static Object finishObject(Object obj)
-    {
-        return obj;
+        return parse(jsonSrc, defaultBP);
     }
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
     // and the Reader must return true when markSupported() is called.
-    public static Object parse(Reader jsonSrc) throws Exception, IOException
+    public static Object parse(Reader jsonSrc, BuildPolicy bp) 
+        throws Exception, IOException
     {
         ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
         ArrayDeque<Object> keyStack = new ArrayDeque<Object>(); // For parsing KV pairs in objects.
@@ -194,13 +159,13 @@ public class SubJson
                 case 'n': 
                     parseNull(jsonSrc);
 
-                    latestValue = null;
+                    latestValue = bp.makeNull();
                     break; // Jump to cleanup code after inner switch.
                     
                     // true & false
                 case 't':
                 case 'f':
-                    latestValue = parseBoolean(jsonSrc);
+                    latestValue = bp.makeBoolean(parseBoolean(jsonSrc));
                     break; // Jump to cleanup code after inner switch.
                     
                     // Number
@@ -215,12 +180,12 @@ public class SubJson
                 case '7':
                 case '8':
                 case '9':
-                    latestValue = parseNumber(jsonSrc);
+                    latestValue = bp.makeNumber(parseNumber(jsonSrc));
                     break; // Jump to cleanup code after inner switch
                     
                     // String
                 case '"':
-                    latestValue = parseString(jsonSrc);
+                    latestValue = bp.makeString(parseString(jsonSrc));
                     break; // Jump to cleanup code after inner switch
                     
                     // Array
@@ -249,12 +214,12 @@ public class SubJson
                     return latestValue;
                 } else {
                     Object valueStackTop = valueStack.peek();
-                    if (isArray(valueStackTop)) {
+                    if (bp.isArray(valueStackTop)) {
                         // We had to parse a value while parsing an array
-                        arrayAppend(valueStackTop, latestValue);
+                        bp.arrayAppend(valueStackTop, latestValue);
                         currState = LBL_PA_PARSEDVALUE;
-                    } else if (isObject(valueStackTop)) {
-                        objectInsert(valueStackTop, keyStack.pop(), latestValue);
+                    } else if (bp.isObject(valueStackTop)) {
+                        bp.objectInsert(valueStackTop, keyStack.pop(), latestValue);
                         currState = LBL_PO_PARSEDKV;
                     }
                     break dispatch;
@@ -264,7 +229,7 @@ public class SubJson
                 // "parseArray()" (see comment above)
             case LBL_PARSE_ARRAY:
                 parseChar(jsonSrc, '[');
-                valueStack.push(startArray());
+                valueStack.push(bp.startArray());
             case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
@@ -287,7 +252,7 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, ']');
-                    latestValue = finishArray(valueStack.pop());
+                    latestValue = bp.finishArray(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
@@ -296,7 +261,7 @@ public class SubJson
                 // "parseObject()" (see comment above)
             case LBL_PARSE_OBJECT:
                 parseChar(jsonSrc, '{');
-                valueStack.push(startObject());
+                valueStack.push(bp.startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
@@ -306,7 +271,7 @@ public class SubJson
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an object.");
                 } else if (currRune != '}') {
-                    keyStack.push(parseString(jsonSrc));
+                    keyStack.push(bp.makeString(parseString(jsonSrc)));
                     skipWhitespace(jsonSrc);
                     parseChar(jsonSrc, ':');
                     skipWhitespace(jsonSrc);
@@ -323,7 +288,7 @@ public class SubJson
                     break dispatch;
                 } else {
                     parseChar(jsonSrc, '}');
-                    latestValue = finishObject(valueStack.pop());
+                    latestValue = bp.finishObject(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
