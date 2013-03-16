@@ -341,4 +341,12 @@
             edn-src (-> (str "jsonorg_examples/" example-name ".edn")
                         io/resource slurp)]
         (is (= (SubJson/parse (make-rdr json-src))
-               (read-string edn-src)))))))
+               (read-string edn-src))))))
+  ;; Test String version
+  (doseq [example-name jsonorg_examples]
+      (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
+                         io/resource slurp)
+            edn-src (-> (str "jsonorg_examples/" example-name ".edn")
+                        io/resource slurp)]
+        (is (= (SubJson/parse json-src)
+               (read-string edn-src))))))

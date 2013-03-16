@@ -67,6 +67,13 @@ public class SubJson
             return false;
         }
     }
+    
+    // Convenience function for Strings.
+    public static Object parse(String jsonSrc)
+        throws Exception, IOException
+    {
+        return parse(new UnsynchronizedStringReader(jsonSrc));
+    }
 
     public static Object parse(Reader jsonSrc) 
         throws Exception, IOException

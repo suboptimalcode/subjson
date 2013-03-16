@@ -9,7 +9,6 @@
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]
-  :warn-on-reflection true
 
   :profiles {:test {:resource-paths ["resources" "test/resources"]
                     :java-source-paths ["benchmarks/subjson/java"]}
