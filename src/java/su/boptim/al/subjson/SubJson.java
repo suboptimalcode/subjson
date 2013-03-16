@@ -1,8 +1,6 @@
 package su.boptim.al.subjson;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.io.Reader;
 import java.io.IOException;
 
