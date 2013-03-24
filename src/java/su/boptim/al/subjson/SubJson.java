@@ -1,7 +1,10 @@
 package su.boptim.al.subjson;
 
 import java.util.ArrayDeque;
+import java.util.Map;
+import java.util.Iterator;
 import java.io.Reader;
+import java.io.Writer;
 import java.io.IOException;
 
 public class SubJson
@@ -15,8 +18,18 @@ public class SubJson
     static final int LBL_PO_STARTKV = 5;
     static final int LBL_PO_PARSEDKV = 6;
     static final int LBL_ROUTE_VALUE = 7;
+
+    static final int LBL_PRINT_VALUE = 0;
+    static final int LBL_CHECK_STACK_OR_FINISH = 1;
+    static final int LBL_PRINT_ARRAY_ELEMENT = 2;
+    static final int LBL_PRINT_ARRAY_CONTINUE = 3;
+    static final int LBL_PRINT_ARRAY_FINISH = 4;
+    static final int LBL_PRINT_OBJECT_ELEMENT = 5;
+    static final int LBL_PRINT_OBJECT_CONTINUE = 6;
+    static final int LBL_PRINT_OBJECT_FINISH = 7;
     
     static final BuildPolicy defaultBP = new DefaultBuildPolicy();
+    static final ValueInterpreter defaultVI = new DefaultValueInterpreter();
 
     /* 
        Takes a Reader and returns what read() will return,
@@ -63,6 +76,45 @@ public class SubJson
             return true;
         default:
             return false;
+        }
+    }
+
+    // Returns true iff this character would need to be escaped in a JSON
+    // string.
+    public static boolean needsEscape(char c)
+    {
+        // Note that '/' does not need to be escaped, even though
+        // it has an escape code. So we don't.
+        switch (c) {
+        case '"':
+        case '\\':
+        case '\b':
+        case '\f':
+        case '\n':
+        case '\r':
+        case '\t':
+            return true;
+        default: 
+            return false;
+        }
+    }
+
+    // Returns a string containing the escape code for the given character in
+    // a JSON string. If a character does not need escaping, it returns that
+    // character in a string. 
+    public static String escape(char c)
+    {
+        // Again, note that '/' won't be escaped, even though it does
+        // have an escape code.
+        switch (c) {
+        case '"': return "\\\"";
+        case '\\': return "\\\\";
+        case '\b': return "\\b";
+        case '\f': return "\\f";
+        case '\n': return "\\n";
+        case '\r': return "\\r";
+        case '\t': return "\\t";
+        default: return String.valueOf(c);
         }
     }
     
@@ -573,7 +625,7 @@ public class SubJson
             // If there was a decimal point or exponent, it must be floating point.
             retVal = new Double(sb.toString()); 
         } else {
-            retVal = new Integer(sb.toString());
+            retVal = new Long(sb.toString());
         }
         
         return retVal;
@@ -739,5 +791,227 @@ public class SubJson
                 }
             }
         }
+    }
+
+    public static void print(Writer out, Object jsonValue)
+        throws IOException
+    {
+        print(out, jsonValue, defaultVI);
+    }
+
+    public static void print(Writer out, Object jsonValue, ValueInterpreter vi)
+        throws IOException
+    {
+        ArrayDeque<PrintingStackFrame> inProgressStack 
+            = new ArrayDeque<PrintingStackFrame>();
+        
+        int currState = LBL_PARSE_VALUE;
+        Object currValue = jsonValue;
+
+        /*
+          Here's the (pseudo-)code we wish we could write 
+          (see comment in parse() above):
+
+          print(jsonVal):
+              if (primitive(jsonVal)) printPrimitive(jsonVal);
+              else if (isArray(jsonVal)):
+                  printArray(jsonVal);
+              else if (isObject(jsonVal)):
+                  printObject(jsonVal);
+                  
+          printArray(jsonVal):
+              out.append("[");
+              print_array_elt:
+              if (jsonVal.hasNextElement()):
+                  v = getNextArrayElement(jsonVal);
+                  print(v);
+                  if (jsonVal.hasNextElement()):
+                      out.append(",");
+                      goto print_array_elt;
+              out.append("]");
+
+          printObject(jsonVal):
+              out.append("{");
+              print_object_elt:
+              printString(kv.key());
+              out.append(":");
+              print(kv.val());
+              if (jsonVal.hasNextElement()):
+                  out.append(",");
+                  goto print_object_elt;
+              out.append("}");
+
+          The code is a little different in flow compared to the parse
+          case because we must deal with the API provided by the
+          Iterator interface here, instead of being in charge of the
+          parsing right from the input.
+        */
+        while (true) {
+            dispatch:
+            switch (currState) {
+            case LBL_PRINT_VALUE:
+                ValueInterpreter.ValueType currType = vi.categorize(currValue);
+                
+                switch (currType) {
+                case TYPE_NULL:
+                    out.append("null");
+                    break;
+                case TYPE_BOOLEAN:
+                    if (((Boolean)currValue).booleanValue() == true) {
+                        out.append("true");
+                    } else {
+                        out.append("false");
+                    }
+                    break;
+                case TYPE_STRING:
+                    // Wrong, obviously, needs escaping
+                    printString(out, (String)currValue);
+                    break;
+                case TYPE_INTEGER:
+                    out.append(currValue.toString());
+                    break;
+                case TYPE_REAL:
+                    out.append(currValue.toString());
+                    break;
+                case TYPE_ARRAY:
+                    out.append("[");
+                    inProgressStack.push(new PrintingStackFrame(vi.arrayIterator(currValue),
+                                                                ValueInterpreter.ValueType.TYPE_ARRAY));
+                    // We need attempt to print an array element first, because jumping to
+                    // LBL_PRINT_ARRAY_CONTINUE assumes at least one has been printed.
+                    // PRINT_ARRAY_ELEMENT will handle empty array check.
+                    currState = LBL_PRINT_ARRAY_ELEMENT;
+                    break dispatch;
+                case TYPE_OBJECT:
+                    out.append("{");
+                    inProgressStack.push(new PrintingStackFrame(vi.objectIterator(currValue),
+                                                                ValueInterpreter.ValueType.TYPE_OBJECT));
+                    // As with TYPE_ARRAY, we jump directly to trying to print an element,
+                    // since that code will check if the object is empty, and the continuation
+                    // code assumes at least one element has printed.
+                    currState = LBL_PRINT_OBJECT_ELEMENT;
+                    break dispatch;
+                default:
+                    
+                    break;
+                }
+
+                // Note that "print-value" falls through to here.
+            case LBL_CHECK_STACK_OR_FINISH:
+                if (inProgressStack.isEmpty()) {
+                    return;
+                } else {
+                    PrintingStackFrame psf = inProgressStack.peek();
+                    if (psf.iteratorType == ValueInterpreter.ValueType.TYPE_ARRAY) {
+                        currState = LBL_PRINT_ARRAY_CONTINUE;
+                        break dispatch;
+                    } else if (psf.iteratorType == ValueInterpreter.ValueType.TYPE_OBJECT) {
+                        currState = LBL_PRINT_OBJECT_CONTINUE;
+                        break dispatch;
+                    } else {
+                    }
+                }
+                
+            case LBL_PRINT_ARRAY_ELEMENT:
+                {
+                    PrintingStackFrame psf = inProgressStack.peek();
+                    Iterator<Object> it = (Iterator<Object>)psf.it;
+                    if (it.hasNext()) {
+                        currValue = it.next();
+                        currState = LBL_PRINT_VALUE;
+                    } else {
+                        currState = LBL_PRINT_ARRAY_FINISH;
+                    }
+                }
+                break dispatch;
+
+            case LBL_PRINT_ARRAY_CONTINUE:
+                {
+                    PrintingStackFrame psf = inProgressStack.peek();
+                    Iterator<Object> it = (Iterator<Object>)psf.it;
+                    if (it.hasNext()) {
+                        out.append(",");
+                        currState = LBL_PRINT_ARRAY_ELEMENT;
+                    } else {
+                        currState = LBL_PRINT_ARRAY_FINISH;
+                    }
+                }
+                break dispatch;
+                
+            case LBL_PRINT_ARRAY_FINISH:
+                // Finish printing the array and "return."
+                out.append("]");
+                inProgressStack.pop();
+                currState = LBL_CHECK_STACK_OR_FINISH;
+                break dispatch;
+
+            case LBL_PRINT_OBJECT_ELEMENT:
+                {
+                    PrintingStackFrame psf = inProgressStack.peek();
+                    Iterator<Map.Entry<String, Object>> it = 
+                        (Iterator<Map.Entry<String, Object>>)psf.it;
+                    if (it.hasNext()) {
+                        Map.Entry<String, Object> me = (Map.Entry<String, Object>)it.next();
+                        printString(out, me.getKey());
+                        out.append(":");
+                        currValue = me.getValue();
+                        currState = LBL_PRINT_VALUE;
+                    } else {
+                        currState = LBL_PRINT_OBJECT_FINISH;
+                    }
+                }
+                break dispatch;
+
+            case LBL_PRINT_OBJECT_CONTINUE:
+                {
+                    PrintingStackFrame psf = inProgressStack.peek();
+                    Iterator<Map.Entry<String, Object>> it =
+                        (Iterator<Map.Entry<String, Object>>)psf.it;
+                    if (it.hasNext()) {
+                        out.append(",");
+                        currState = LBL_PRINT_OBJECT_ELEMENT;
+                    } else {
+                        currState = LBL_PRINT_OBJECT_FINISH;
+                    }
+                }
+                break dispatch;
+
+            case LBL_PRINT_OBJECT_FINISH:
+                // Finish printing the object and "return."
+                out.append("}");
+                inProgressStack.pop();
+                currState = LBL_CHECK_STACK_OR_FINISH;
+                break dispatch;
+            }
+        }
+    }
+
+    public static void printString(Writer out, String str)
+        throws IOException
+    {
+        int segStart = 0;
+        int i = 0;
+
+        out.append("\"");
+        while (i < str.length()) {
+            char currChar = str.charAt(i);
+
+            // Check if currChar requires escaping.
+            if (needsEscape(currChar)) {
+                // Write out the segment we've been scanning so far,
+                // then write out the escaped character and restart
+                // the scanning for the next segment.
+                out.append(str.substring(segStart, i));
+                out.append(escape(currChar));
+                i++;
+                segStart = i;
+            } else {
+                i++; // Just move on to the next char.
+            }
+        }
+        
+        // Need to print the final segment.
+        out.append(str.substring(segStart, i));
+        out.append("\"");
     }
 }

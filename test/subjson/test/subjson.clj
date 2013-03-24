@@ -2,7 +2,7 @@
   (:use clojure.test)
   (:require [clojure.java.io :as io])
   (:import [su.boptim.al.subjson SubJson UnsynchronizedStringReader]
-           [java.io Reader StringReader]
+           [java.io Reader StringReader StringWriter]
            [java.lang.reflect Method]))
 
 (defn get-private-static-method
@@ -225,7 +225,8 @@
 ;; Parsing strings
 ;;
 
-(def strings {"\"a\"" "a"
+(def strings {"\"\"" ""
+              "\"a\"" "a"
               "\"ab\"" "ab"
               "\"abc\"" "abc"
               "\"\\\\\"" "\\"
@@ -333,7 +334,7 @@
 
 (def jsonorg_examples ["glossary" "menu" "widget" "web-app" "menu2"])
 
-(deftest test_jsonorg_examples
+(deftest parse_jsonorg_examples-test
   (doseq [make-rdr reader-makers]
     (doseq [example-name jsonorg_examples]
       (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
@@ -350,3 +351,62 @@
                         io/resource slurp)]
         (is (= (SubJson/parse json-src)
                (read-string edn-src))))))
+
+;;
+;; JSON printing
+;;
+
+;; We can't just reuse the `strings` map from the parse tests, for various
+;; reasons, including the fact that there are many ways to represent a given
+;; logical string as JSON (liberally using \u????, optional escaping of '/',
+;; for example).
+(def strings-out {"" "\"\""
+                  "a" "\"a\""
+                  "ab" "\"ab\""
+                  "abc" "\"abc\""
+                  "\\" "\"\\\\\"" ;; Single backslash in string
+                  "\"" "\"\\\"\"" ;; Single double-quote in string
+                  "a\"b" "\"a\\\"b\""
+                  "a/b/c/" "\"a/b/c/\""
+                  "/\b" "\"/\\b\""
+                   "\f\n\r\t" "\"\\f\\n\\r\\t\""})
+
+(deftest string-write-test
+  (doseq [[string-value correct-output] strings-out]
+    (let [out (StringWriter.)]
+      (is (= correct-output (do (SubJson/printString out string-value)
+                                (.toString out)))))))
+
+(def primitive-values {nil "null"
+                       true "true"
+                       false "false"
+                       1 "1"
+                       123 "123"
+                       -2 "-2"
+                       1.0 "1.0"
+                       123.0 "123.0"
+                       2.8e15 "2.8E15"
+                       -1.0e24 "-1.0E24"
+                       "hello" "\"hello\""
+                       "hello\nworld" "\"hello\\nworld\""
+                       "He said, \"hi.\"\r\n" "\"He said, \\\"hi.\\\"\\r\\n\""
+                       "true/false" "\"true/false\""})
+
+(deftest primitive-write-test
+  (doseq [[primitive-value correct-output] primitive-values]
+    (let [out (StringWriter.)]
+      (is (= correct-output (do (SubJson/print out primitive-value)
+                                (.toString out)))))))
+
+;; Objects have no defined order of keys, so to test printing of all
+;; other objects, we rely on a round trip of write/parse.
+(deftest print-jsonorg_examples-test
+  ;; Test String version
+  (doseq [example-name jsonorg_examples]
+      (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
+                         io/resource slurp)
+            json-val (SubJson/parse json-src)]
+        (is (= json-val
+               (let [sw (StringWriter.)]
+                 (SubJson/print sw json-val)
+                 (SubJson/parse (.toString sw))))))))
