@@ -805,7 +805,7 @@ public class SubJson
         ArrayDeque<PrintingStackFrame> inProgressStack 
             = new ArrayDeque<PrintingStackFrame>();
         
-        int currState = LBL_PARSE_VALUE;
+        int currState = LBL_PRINT_VALUE;
         Object currValue = jsonValue;
 
         /*
