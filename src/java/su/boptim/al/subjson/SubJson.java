@@ -10,26 +10,26 @@ import java.io.IOException;
 public class SubJson
 {
     // JUMP POINTS -- see big comment in parse()
-    static final int LBL_PARSE_VALUE = 0;
-    static final int LBL_PARSE_ARRAY = 1;
-    static final int LBL_PA_STARTVALUE = 2;
-    static final int LBL_PA_PARSEDVALUE = 3;
-    static final int LBL_PARSE_OBJECT = 4;
-    static final int LBL_PO_STARTKV = 5;
-    static final int LBL_PO_PARSEDKV = 6;
-    static final int LBL_ROUTE_VALUE = 7;
+    private static final int LBL_PARSE_VALUE = 0;
+    private static final int LBL_PARSE_ARRAY = 1;
+    private static final int LBL_PA_STARTVALUE = 2;
+    private static final int LBL_PA_PARSEDVALUE = 3;
+    private static final int LBL_PARSE_OBJECT = 4;
+    private static final int LBL_PO_STARTKV = 5;
+    private static final int LBL_PO_PARSEDKV = 6;
+    private static final int LBL_ROUTE_VALUE = 7;
 
-    static final int LBL_PRINT_VALUE = 0;
-    static final int LBL_CHECK_STACK_OR_FINISH = 1;
-    static final int LBL_PRINT_ARRAY_ELEMENT = 2;
-    static final int LBL_PRINT_ARRAY_CONTINUE = 3;
-    static final int LBL_PRINT_ARRAY_FINISH = 4;
-    static final int LBL_PRINT_OBJECT_ELEMENT = 5;
-    static final int LBL_PRINT_OBJECT_CONTINUE = 6;
-    static final int LBL_PRINT_OBJECT_FINISH = 7;
+    private static final int LBL_PRINT_VALUE = 0;
+    private static final int LBL_CHECK_STACK_OR_FINISH = 1;
+    private static final int LBL_PRINT_ARRAY_ELEMENT = 2;
+    private static final int LBL_PRINT_ARRAY_CONTINUE = 3;
+    private static final int LBL_PRINT_ARRAY_FINISH = 4;
+    private static final int LBL_PRINT_OBJECT_ELEMENT = 5;
+    private static final int LBL_PRINT_OBJECT_CONTINUE = 6;
+    private static final int LBL_PRINT_OBJECT_FINISH = 7;
     
-    static final BuildPolicy defaultBP = new DefaultBuildPolicy();
-    static final ValueInterpreter defaultVI = new DefaultValueInterpreter();
+    private static final BuildPolicy defaultBP = new DefaultBuildPolicy();
+    private static final ValueInterpreter defaultVI = new DefaultValueInterpreter();
 
     /* 
        Takes a Reader and returns what read() will return,
