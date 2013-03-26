@@ -1059,7 +1059,7 @@ public class SubJson
         }
     }
 
-    public static void printString(Writer out, String str)
+    private static void printString(Writer out, String str)
         throws IOException
     {
         int segStart = 0;

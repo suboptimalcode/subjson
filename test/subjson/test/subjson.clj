@@ -3,19 +3,21 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [su.boptim.al.subjson SubJson UnsynchronizedStringReader]
-           [java.io Reader StringReader StringWriter]
+           [java.io Reader StringReader Writer StringWriter]
            [java.lang.reflect Method]))
 
 (defn get-private-static-method
   "Given a method name, returns a closure that will call that static method
    with the arguments given to the closure."
-  [method-name]
-  (let [method (.getDeclaredMethod SubJson method-name
-                                   (into-array Class [Reader]))]
-    (.setAccessible method true)
-    (fn [& args]
-      (.invoke method nil ;; static methods only
-               (to-array args)))))
+  ([method-name]
+     (get-private-static-method method-name [Reader]))
+  ([method-name arg-list]
+     (let [method (.getDeclaredMethod SubJson method-name
+                                      (into-array Class arg-list))]
+       (.setAccessible method true)
+       (fn [& args]
+         (.invoke method nil ;; static methods only
+                  (to-array args))))))
 
 ;; We want to do tests that take a Reader with as many Readers as we
 ;; reasonably can. This makes sure the code is not making unreasonable
@@ -370,12 +372,15 @@
                   "a\"b" "\"a\\\"b\""
                   "a/b/c/" "\"a/b/c/\""
                   "/\b" "\"/\\b\""
-                   "\f\n\r\t" "\"\\f\\n\\r\\t\""})
+                  "\f\n\r\t" "\"\\f\\n\\r\\t\""})
+
+(def printString (get-private-static-method "printString"
+                                            [Writer String]))
 
 (deftest string-write-test
   (doseq [[string-value correct-output] strings-out]
     (let [out (StringWriter.)]
-      (is (= correct-output (do (SubJson/printString out string-value)
+      (is (= correct-output (do (printString out string-value)
                                 (.toString out)))))))
 
 (def primitive-values {nil "null"
