@@ -374,13 +374,13 @@
                   "/\b" "\"/\\b\""
                   "\f\n\r\t" "\"\\f\\n\\r\\t\""})
 
-(def printString (get-private-static-method "printString"
+(def writeString (get-private-static-method "writeString"
                                             [Writer String]))
 
 (deftest string-write-test
   (doseq [[string-value correct-output] strings-out]
     (let [out (StringWriter.)]
-      (is (= correct-output (do (printString out string-value)
+      (is (= correct-output (do (writeString out string-value)
                                 (.toString out)))))))
 
 (def primitive-values {nil "null"
@@ -401,7 +401,7 @@
 (deftest primitive-write-test
   (doseq [[primitive-value correct-output] primitive-values]
     (let [out (StringWriter.)]
-      (is (= correct-output (do (SubJson/print out primitive-value)
+      (is (= correct-output (do (SubJson/write out primitive-value)
                                 (.toString out)))))))
 
 ;; Objects have no defined order of keys, so to test printing of all
@@ -415,7 +415,7 @@
             json-val (SubJson/parse json-src)]
         (is (= json-val
                (let [sw (StringWriter.)]
-                 (SubJson/print sw json-val pretty-print?)
+                 (SubJson/write sw json-val pretty-print?)
                  (SubJson/parse (.toString sw))))))))
 
 ;; Check the pretty printing by reading examples that are pretty-printed
@@ -432,7 +432,7 @@
             json-val (SubJson/parse json-src)]
         (is (= json-src
                (let [sw (StringWriter.)]
-                 (SubJson/print sw json-val true)
+                 (SubJson/write sw json-val true)
                  (.toString sw)))))))
 
 ;; Similarly for compact-printed examples.
@@ -447,5 +447,5 @@
             json-val (SubJson/parse json-src)]
         (is (= json-src
                (let [sw (StringWriter.)]
-                 (SubJson/print sw json-val false)
+                 (SubJson/write sw json-val false)
                  (.toString sw)))))))

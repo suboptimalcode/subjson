@@ -793,19 +793,19 @@ public class SubJson
         }
     }
 
-    public static void print(Writer out, Object jsonValue)
+    public static void write(Writer out, Object jsonValue)
         throws IOException
     {
-        print(out, jsonValue, true, defaultVI);
+        write(out, jsonValue, true, defaultVI);
     }
 
-    public static void print(Writer out, Object jsonValue, boolean pretty)
+    public static void write(Writer out, Object jsonValue, boolean pretty)
         throws IOException
     {
-        print(out, jsonValue, pretty, defaultVI);
+        write(out, jsonValue, pretty, defaultVI);
     }
 
-    public static void print(Writer out, Object jsonValue, boolean pretty, 
+    public static void write(Writer out, Object jsonValue, boolean pretty, 
                              ValueInterpreter vi)
         throws IOException
     {
@@ -838,33 +838,33 @@ public class SubJson
           Here's the (pseudo-)code we wish we could write 
           (see comment in parse() above):
 
-          print(jsonVal):
-              if (primitive(jsonVal)) printPrimitive(jsonVal);
+          write(jsonVal):
+              if (primitive(jsonVal)) writePrimitive(jsonVal);
               else if (isArray(jsonVal)):
-                  printArray(jsonVal);
+                  writeArray(jsonVal);
               else if (isObject(jsonVal)):
-                  printObject(jsonVal);
+                  writeObject(jsonVal);
                   
-          printArray(jsonVal):
+          writeArray(jsonVal):
               out.append("[");
-              print_array_elt:
+              write_array_elt:
               if (jsonVal.hasNextElement()):
                   v = getNextArrayElement(jsonVal);
-                  print(v);
+                  write(v);
                   if (jsonVal.hasNextElement()):
                       out.append(",");
-                      goto print_array_elt;
+                      goto write_array_elt;
               out.append("]");
 
-          printObject(jsonVal):
+          writeObject(jsonVal):
               out.append("{");
-              print_object_elt:
-              printString(kv.key());
+              write_object_elt:
+              writeString(kv.key());
               out.append(":");
-              print(kv.val());
+              write(kv.val());
               if (jsonVal.hasNextElement()):
                   out.append(",");
-                  goto print_object_elt;
+                  goto write_object_elt;
               out.append("}");
 
           The code is a little different in flow compared to the parse
@@ -891,7 +891,7 @@ public class SubJson
                     break;
                 case TYPE_STRING:
                     // Wrong, obviously, needs escaping
-                    printString(out, (String)currValue);
+                    writeString(out, (String)currValue);
                     break;
                 case TYPE_INTEGER:
                     out.append(currValue.toString());
@@ -1019,7 +1019,7 @@ public class SubJson
                     if (it.hasNext()) {
                         out.append(indentation);
                         Map.Entry<String, Object> me = (Map.Entry<String, Object>)it.next();
-                        printString(out, me.getKey());
+                        writeString(out, me.getKey());
                         out.append(COLON);
                         currValue = me.getValue();
                         currState = LBL_PRINT_VALUE;
@@ -1059,7 +1059,7 @@ public class SubJson
         }
     }
 
-    private static void printString(Writer out, String str)
+    private static void writeString(Writer out, String str)
         throws IOException
     {
         int segStart = 0;
