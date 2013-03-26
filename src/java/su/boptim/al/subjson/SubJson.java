@@ -796,10 +796,17 @@ public class SubJson
     public static void print(Writer out, Object jsonValue)
         throws IOException
     {
-        print(out, jsonValue, defaultVI);
+        print(out, jsonValue, true, defaultVI);
     }
 
-    public static void print(Writer out, Object jsonValue, ValueInterpreter vi)
+    public static void print(Writer out, Object jsonValue, boolean pretty)
+        throws IOException
+    {
+        print(out, jsonValue, pretty, defaultVI);
+    }
+
+    public static void print(Writer out, Object jsonValue, boolean pretty, 
+                             ValueInterpreter vi)
         throws IOException
     {
         ArrayDeque<PrintingStackFrame> inProgressStack 
@@ -807,6 +814,25 @@ public class SubJson
         
         int currState = LBL_PRINT_VALUE;
         Object currValue = jsonValue;
+
+        // Choose characters for either pretty or compact printing.
+        String NL, COMMA, COLON, TAB;
+        if (pretty) {
+            NL = "\n";
+            COMMA = "," + NL;
+            COLON = ": ";
+            TAB = "    ";
+        } else {
+            NL = "";
+            COMMA = ",";
+            COLON = ":";
+            TAB = "";
+        }
+        
+        // We'll use a StringBuilder as a mutable CharSequence to
+        // hold the current characters used for indentation. An
+        // indentation is 4 space characters.
+        StringBuilder indentation = new StringBuilder();
 
         /*
           Here's the (pseudo-)code we wish we could write 
@@ -874,23 +900,56 @@ public class SubJson
                     out.append(currValue.toString());
                     break;
                 case TYPE_ARRAY:
-                    out.append("[");
-                    inProgressStack.push(new PrintingStackFrame(vi.arrayIterator(currValue),
-                                                                ValueInterpreter.ValueType.TYPE_ARRAY));
-                    // We need attempt to print an array element first, because jumping to
-                    // LBL_PRINT_ARRAY_CONTINUE assumes at least one has been printed.
-                    // PRINT_ARRAY_ELEMENT will handle empty array check.
-                    currState = LBL_PRINT_ARRAY_ELEMENT;
-                    break dispatch;
+                    {
+                        PrintingStackFrame psf = 
+                            new PrintingStackFrame(vi.arrayIterator(currValue),
+                                                   ValueInterpreter.ValueType.TYPE_ARRAY);
+
+                        // Pretty printing has an exception for empty values (empty array 
+                        // = "[]", no whitespace), so handle it specially here. Works
+                        // fine for both pretty and compact styles.
+                        if (!psf.it.hasNext()) {
+                            out.append("[]");
+                            
+                            currState = LBL_CHECK_STACK_OR_FINISH;
+                        } else {
+                            inProgressStack.push(psf);
+                            indentation.append(TAB);
+                            
+                            out.append("[");
+
+                            // We need attempt to print an array element first, because jumping to
+                            // LBL_PRINT_ARRAY_CONTINUE assumes at least one has been printed.
+                            // PRINT_ARRAY_ELEMENT will handle empty array check.            
+                            out.append(NL);
+                            currState = LBL_PRINT_ARRAY_ELEMENT;
+                        }
+                        break dispatch;
+                    }
                 case TYPE_OBJECT:
-                    out.append("{");
-                    inProgressStack.push(new PrintingStackFrame(vi.objectIterator(currValue),
-                                                                ValueInterpreter.ValueType.TYPE_OBJECT));
-                    // As with TYPE_ARRAY, we jump directly to trying to print an element,
-                    // since that code will check if the object is empty, and the continuation
-                    // code assumes at least one element has printed.
-                    currState = LBL_PRINT_OBJECT_ELEMENT;
-                    break dispatch;
+                    {
+                        PrintingStackFrame psf =
+                            new PrintingStackFrame(vi.objectIterator(currValue),
+                                                   ValueInterpreter.ValueType.TYPE_OBJECT);
+
+                        // Pretty printing has an exception for empty object, so handle
+                        // it specially here. Works fine for both pretty and compact styles.
+                        if (!psf.it.hasNext()) {
+                            out.append("{}");
+
+                            currState = LBL_CHECK_STACK_OR_FINISH;
+                        } else {
+                            inProgressStack.push(psf);
+                            indentation.append(TAB);
+                            
+                            out.append("{");
+
+                            // We know the object is non-empty since we are in the else.
+                            out.append(NL);
+                            currState = LBL_PRINT_OBJECT_ELEMENT;
+                        }
+                        break dispatch;
+                    }
                 default:
                     
                     break;
@@ -917,6 +976,7 @@ public class SubJson
                     PrintingStackFrame psf = inProgressStack.peek();
                     Iterator<Object> it = (Iterator<Object>)psf.it;
                     if (it.hasNext()) {
+                        out.append(indentation);
                         currValue = it.next();
                         currState = LBL_PRINT_VALUE;
                     } else {
@@ -930,7 +990,7 @@ public class SubJson
                     PrintingStackFrame psf = inProgressStack.peek();
                     Iterator<Object> it = (Iterator<Object>)psf.it;
                     if (it.hasNext()) {
-                        out.append(",");
+                        out.append(COMMA);
                         currState = LBL_PRINT_ARRAY_ELEMENT;
                     } else {
                         currState = LBL_PRINT_ARRAY_FINISH;
@@ -940,8 +1000,14 @@ public class SubJson
                 
             case LBL_PRINT_ARRAY_FINISH:
                 // Finish printing the array and "return."
-                out.append("]");
                 inProgressStack.pop();
+                indentation.delete(indentation.length() - TAB.length(),
+                                   indentation.length());
+                
+                out.append(NL); // Need newline after last item for pretty
+                out.append(indentation);
+                out.append("]");
+
                 currState = LBL_CHECK_STACK_OR_FINISH;
                 break dispatch;
 
@@ -951,9 +1017,10 @@ public class SubJson
                     Iterator<Map.Entry<String, Object>> it = 
                         (Iterator<Map.Entry<String, Object>>)psf.it;
                     if (it.hasNext()) {
+                        out.append(indentation);
                         Map.Entry<String, Object> me = (Map.Entry<String, Object>)it.next();
                         printString(out, me.getKey());
-                        out.append(":");
+                        out.append(COLON);
                         currValue = me.getValue();
                         currState = LBL_PRINT_VALUE;
                     } else {
@@ -968,7 +1035,7 @@ public class SubJson
                     Iterator<Map.Entry<String, Object>> it =
                         (Iterator<Map.Entry<String, Object>>)psf.it;
                     if (it.hasNext()) {
-                        out.append(",");
+                        out.append(COMMA);
                         currState = LBL_PRINT_OBJECT_ELEMENT;
                     } else {
                         currState = LBL_PRINT_OBJECT_FINISH;
@@ -978,8 +1045,14 @@ public class SubJson
 
             case LBL_PRINT_OBJECT_FINISH:
                 // Finish printing the object and "return."
-                out.append("}");
                 inProgressStack.pop();
+                indentation.delete(indentation.length() - TAB.length(),
+                                   indentation.length());
+
+                out.append(NL); // Need newline after last item for pretty.
+                out.append(indentation);
+                out.append("}");
+
                 currState = LBL_CHECK_STACK_OR_FINISH;
                 break dispatch;
             }

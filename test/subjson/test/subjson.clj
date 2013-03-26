@@ -1,6 +1,7 @@
 (ns subjson.test.subjson
   (:use clojure.test)
-  (:require [clojure.java.io :as io])
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str])
   (:import [su.boptim.al.subjson SubJson UnsynchronizedStringReader]
            [java.io Reader StringReader StringWriter]
            [java.lang.reflect Method]))
@@ -402,11 +403,44 @@
 ;; other objects, we rely on a round trip of write/parse.
 (deftest print-jsonorg_examples-test
   ;; Test String version
-  (doseq [example-name jsonorg_examples]
+  (doseq [example-name jsonorg_examples
+          pretty-print? [true false]]
       (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
                          io/resource slurp)
             json-val (SubJson/parse json-src)]
         (is (= json-val
                (let [sw (StringWriter.)]
-                 (SubJson/print sw json-val)
+                 (SubJson/print sw json-val pretty-print?)
                  (SubJson/parse (.toString sw))))))))
+
+;; Check the pretty printing by reading examples that are pretty-printed
+;; the way we like and trying to print them out to get identical results.
+;; Maps present an obvious problem, so restrict ourselves to single-key maps.
+(def prettyprinting_examples ["pretty_printed1" "pretty_printed2"
+                              "pretty_printed3" "pretty_printed4"
+                              "pretty_printed5"])
+
+(deftest prettyprinted_examples-test
+  (doseq [example-name prettyprinting_examples]
+      (let [json-src (-> (str "prettyprinting_examples/" example-name ".json")
+                         io/resource slurp str/trim)
+            json-val (SubJson/parse json-src)]
+        (is (= json-src
+               (let [sw (StringWriter.)]
+                 (SubJson/print sw json-val true)
+                 (.toString sw)))))))
+
+;; Similarly for compact-printed examples.
+(def compactprinting_examples ["compact_printed1" "compact_printed2"
+                               "compact_printed3" "compact_printed4"
+                               "compact_printed5"])
+
+(deftest compactprinted_examples-test
+  (doseq [example-name compactprinting_examples]
+      (let [json-src (-> (str "compactprinting_examples/" example-name ".json")
+                         io/resource slurp str/trim)
+            json-val (SubJson/parse json-src)]
+        (is (= json-src
+               (let [sw (StringWriter.)]
+                 (SubJson/print sw json-val false)
+                 (.toString sw)))))))
