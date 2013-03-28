@@ -44,79 +44,6 @@ public class SubJson
         return retVal;
     }
 
-    public static boolean isDigit(int rune) 
-    {
-        if (rune >= '0' && rune <= '9') return true;
-        else return false;
-    }
-
-    public static boolean isHexDigit(int rune)
-    {
-        if ((rune >= '0' && rune <= '9') ||
-            (rune >= 'a' && rune <= 'f') ||
-            (rune >= 'A' && rune <= 'F')) return true;
-        else return false;
-    }
-    
-    // Returns true if the unicode codepoint argument is a control character
-    // (as defined by rfc4627). That is, U+0000 through U+001F.
-    public static boolean isControlCharacter(int rune) 
-    {
-        if (rune >= 0 && rune <= 0x1f) return true;
-        else return false;
-    }
-
-    public static boolean isWhitespace(int rune)
-    {
-        switch (rune) {
-        case 0x20:
-        case 0x09:
-        case 0x0A:
-        case 0x0D:
-            return true;
-        default:
-            return false;
-        }
-    }
-
-    // Returns true iff this character would need to be escaped in a JSON
-    // string.
-    public static boolean needsEscape(char c)
-    {
-        // Note that '/' does not need to be escaped, even though
-        // it has an escape code. So we don't.
-        switch (c) {
-        case '"':
-        case '\\':
-        case '\b':
-        case '\f':
-        case '\n':
-        case '\r':
-        case '\t':
-            return true;
-        default: 
-            return false;
-        }
-    }
-
-    // Returns a string containing the escape code for the given character in
-    // a JSON string. If a character does not need escaping, it returns that
-    // character in a string. 
-    public static String escape(char c)
-    {
-        // Again, note that '/' won't be escaped, even though it does
-        // have an escape code.
-        switch (c) {
-        case '"': return "\\\"";
-        case '\\': return "\\\\";
-        case '\b': return "\\b";
-        case '\f': return "\\f";
-        case '\n': return "\\n";
-        case '\r': return "\\r";
-        case '\t': return "\\t";
-        default: return String.valueOf(c);
-        }
-    }
     
     // Convenience function for Strings.
     public static Object read(String jsonSrc)
@@ -533,7 +460,7 @@ public class SubJson
             // If we saw a '-' and the next character is not a digit or is EOF, 
             // it is invalid JSON. JSON requires at least one digit before decimal,
             // exponent parts, and end-of-number.
-            if (sawNegation && !isDigit(currRune)) { // Also handles EOF.
+            if (sawNegation && !TextUtils.isDigit(currRune)) { // Also handles EOF.
                 throw new NumberFormatException("While attempting to read a negative number, the negative sign was not followed by a digit.");
             }
             
@@ -544,7 +471,7 @@ public class SubJson
             jsonSrc.skip(1);
             currRune = peek(jsonSrc);
             
-            if (sawLeadingZero && isDigit(currRune)) {
+            if (sawLeadingZero && TextUtils.isDigit(currRune)) {
                 throw new NumberFormatException("While attempting to read a number, there was a leading zero not immediately followed by a decimal point or exponentiation.");
             } else if (currRune == -1) {
                 break; // EOF, but enough input to read a number.
@@ -553,7 +480,7 @@ public class SubJson
             // Copy as many digits as are present into the current string. Note that if
             // we already saw a '.' or 'e' (for example, this loop doesn't execute and
             // we move right on to the next test.
-            while (isDigit(currRune)) {
+            while (TextUtils.isDigit(currRune)) {
                 sb.appendCodePoint(currRune);
                 jsonSrc.skip(1);
                 currRune = peek(jsonSrc);
@@ -573,11 +500,11 @@ public class SubJson
                 
                 // We must read at least one digit before moving on.
                 // Also handles EOF.
-                if (!isDigit(currRune)) {
+                if (!TextUtils.isDigit(currRune)) {
                     throw new NumberFormatException("While attempting to read a number, there was a decimal point not immediately followed by a digit.");
                 }
                 
-                while (isDigit(currRune)) {
+                while (TextUtils.isDigit(currRune)) {
                     sb.appendCodePoint(currRune);
                     jsonSrc.skip(1);
                     currRune = peek(jsonSrc);
@@ -610,7 +537,7 @@ public class SubJson
             // Now currRune is past any e/E or +/- that would be valid. currRune must
             // be either a digit, EOF, or some non-number character. If it's not the
             // first one of those, then we've reached the end of the number.
-            while (isDigit(currRune)) {
+            while (TextUtils.isDigit(currRune)) {
                 sb.appendCodePoint(currRune);
                 jsonSrc.skip(1);
                 currRune = peek(jsonSrc);
@@ -704,7 +631,7 @@ public class SubJson
                         sb.append(cbuf, 0, bufferedCount-1);
                         return sb.toString();
                     }
-                } else if (isControlCharacter(currRune)) {
+                } else if (TextUtils.isControlCharacter(currRune)) {
                     throw new IllegalArgumentException("Encountered a control character while parsing a string.");
                 } else if (currRune == -1) {
                     throw new IllegalArgumentException("Encountered end of input while reading a string.");
@@ -767,7 +694,7 @@ public class SubJson
                             // So lowest 4 bits of ascii code for a hex digit
                             // are the digit's value, as long as you add 9 for
                             // values in the 0x41-0x66 range.
-                            if (isHexDigit(currRune)) {
+                            if (TextUtils.isHexDigit(currRune)) {
                                 cp = (cp << 4) | ((0xf & currRune) + (currRune <= '9' ? 0 : 9));
                             } else {
                                 throw new IllegalArgumentException("Encountered invalid input while reading a Unicode escape sequence.");
@@ -1070,12 +997,12 @@ public class SubJson
             char currChar = str.charAt(i);
 
             // Check if currChar requires escaping.
-            if (needsEscape(currChar)) {
+            if (TextUtils.needsEscape(currChar)) {
                 // Write out the segment we've been scanning so far,
                 // then write out the escaped character and restart
                 // the scanning for the next segment.
                 out.append(str.substring(segStart, i));
-                out.append(escape(currChar));
+                out.append(TextUtils.escape(currChar));
                 i++;
                 segStart = i;
             } else {

@@ -28,55 +28,6 @@
                     #(UnsynchronizedStringReader. %)])
 
 ;;
-;; Read utilities
-;;
-
-(deftest isDigit-test
-  (is (= true (SubJson/isDigit (int \0))))
-  (is (= true (SubJson/isDigit (int \1))))
-  (is (= true (SubJson/isDigit (int \2))))
-  (is (= true (SubJson/isDigit (int \3))))
-  (is (= true (SubJson/isDigit (int \4))))
-  (is (= true (SubJson/isDigit (int \5))))
-  (is (= true (SubJson/isDigit (int \6))))
-  (is (= true (SubJson/isDigit (int \7))))
-  (is (= true (SubJson/isDigit (int \8))))
-  (is (= true (SubJson/isDigit (int \9))))
-
-  (is (= false (SubJson/isDigit -1)))
-  (doseq [i (range 0 16r2F)]
-    (is (= false (SubJson/isDigit i))))
-  (doseq [i (range 16r3A 16rFF)]
-    (is (= false (SubJson/isDigit i)))))
-
-(deftest isHexDigit-test
-  (is (= false (SubJson/isHexDigit -1)))
-  (doseq [i (range (int \0) (int \9))]
-    (is (= true (SubJson/isHexDigit i))))
-  (doseq [i (range (int \a) (int \f))]
-    (is (= true (SubJson/isHexDigit i))))
-  (doseq [i (range (int \A) (int \F))]
-    (is (= true (SubJson/isHexDigit i))))
-  (doseq [i (range (inc (int \f)) 16rFF)]
-    (is (= false (SubJson/isHexDigit i)))))
-
-
-(deftest isControlCharacter-test
-  (is (= false (SubJson/isControlCharacter -1)))
-  (doseq [i (range 0 16r1F)]
-    (is (= true (SubJson/isControlCharacter i))))
-  (doseq [i (range 16r20 16rFF)]
-    (is (= false (SubJson/isControlCharacter i)))))
-
-(deftest isWhitespace-test
-  (is (= true (SubJson/isWhitespace (int \space))))
-  (is (= true (SubJson/isWhitespace (int \tab))))
-  (is (= true (SubJson/isWhitespace (int \return))))
-  (is (= true (SubJson/isWhitespace (int \newline))))
-  (doseq [i (range 16r21 16rFF)]
-    (is (= false (SubJson/isWhitespace i)))))
-
-;;
 ;; Ignoring whitespace
 ;;
 
