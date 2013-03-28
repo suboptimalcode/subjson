@@ -1,2 +1,2 @@
 #!/bin/bash
-javadoc -sourcepath src/java/ su.boptim.al.subjson -d javadoc/
+javadoc -sourcepath src/java/ -d javadoc/ -subpackages su.boptim.al.subjson
