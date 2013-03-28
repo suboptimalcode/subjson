@@ -5,10 +5,12 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [criterium "0.3.2-SNAPSHOT"]]
-  :plugins [[perforate "0.3.1-SNAPSHOT"]]
+  :plugins [[perforate "0.3.1-SNAPSHOT"]
+            [lein-javadoc "0.1.0-SNAPSHOT"]]
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]
+  :javadoc-opts {:package-names ["su.boptim.al.subjson"]}
 
   :profiles {:test {:resource-paths ["resources" "test/resources"]
                     :java-source-paths ["benchmarks/subjson/java"]}
