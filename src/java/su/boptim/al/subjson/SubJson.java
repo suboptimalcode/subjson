@@ -9,14 +9,14 @@ import java.io.IOException;
 
 public class SubJson
 {
-    // JUMP POINTS -- see big comment in parse()
-    private static final int LBL_PARSE_VALUE = 0;
-    private static final int LBL_PARSE_ARRAY = 1;
+    // JUMP POINTS -- see big comment in read()
+    private static final int LBL_READ_VALUE = 0;
+    private static final int LBL_READ_ARRAY = 1;
     private static final int LBL_PA_STARTVALUE = 2;
-    private static final int LBL_PA_PARSEDVALUE = 3;
-    private static final int LBL_PARSE_OBJECT = 4;
+    private static final int LBL_PA_HAVEREADVALUE = 3;
+    private static final int LBL_READ_OBJECT = 4;
     private static final int LBL_PO_STARTKV = 5;
-    private static final int LBL_PO_PARSEDKV = 6;
+    private static final int LBL_PO_HAVEREADKV = 6;
     private static final int LBL_ROUTE_VALUE = 7;
 
     private static final int LBL_PRINT_VALUE = 0;
@@ -119,26 +119,26 @@ public class SubJson
     }
     
     // Convenience function for Strings.
-    public static Object parse(String jsonSrc)
+    public static Object read(String jsonSrc)
         throws Exception, IOException
     {
-        return parse(new UnsynchronizedStringReader(jsonSrc));
+        return read(new UnsynchronizedStringReader(jsonSrc));
     }
 
-    public static Object parse(Reader jsonSrc) 
+    public static Object read(Reader jsonSrc) 
         throws Exception, IOException
     {
-        return parse(jsonSrc, defaultBP);
+        return read(jsonSrc, defaultBP);
     }
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
     // and the Reader must return true when markSupported() is called.
-    public static Object parse(Reader jsonSrc, BuildPolicy bp) 
+    public static Object read(Reader jsonSrc, BuildPolicy bp) 
         throws Exception, IOException
     {
         ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
         ArrayDeque<Object> keyStack = new ArrayDeque<Object>(); // For parsing KV pairs in objects.
-        int currState = LBL_PARSE_VALUE; 
+        int currState = LBL_READ_VALUE; 
 
         int currRune = 0;
         
@@ -155,38 +155,38 @@ public class SubJson
         /*
           Basically, we wish we could write the following code (more or less):
 
-          parseValue()                            // LBL_PARSE_VALUE:
-              case '[': parseArray();
-              case '{': parseObject();
-              default: return parsePrimitive();
+          readValue()                            // LBL_READ_VALUE:
+              case '[': readArray();
+              case '{': readObject();
+              default: return readPrimitive();
           
-          parseArray()                            // LBL_PARSE_ARRAY:
-              parse('[');
+          readArray()                            // LBL_READ_ARRAY:
+              read('[');
               startvalue:                         // LBL_PA_STARTVALUE:
-              parseValue();
-              if (lookahead == ',')               // LBL_PA_PARSEDVALUE:
-                  parse(',');
+              readValue();
+              if (lookahead == ',')               // LBL_PA_READDVALUE:
+                  read(',');
                   goto startvalue;
               else
-                  parse(']');
+                  read(']');
                   return newArray;
 
-           parseObject()                          // LBL_PARSE_OBJECT:
-               parse('{');
+           readObject()                          // LBL_READ_OBJECT:
+               read('{');
                startkv:                           // LBL_PO_STARTKV:
-               parseString();
-               parse(':');
-               parseValue();
+               readString();
+               read(':');
+               readValue();
                if (lookahead == ',')
-                   parse(',');
+                   read(',');
                    goto startkv;
                else
-                   parse('}');
+                   read('}');
                    return newObject;
 
            However, Java, of course, does not allow us to use goto, nor does it
            let us have arbitrarily looping recursion (like the calls to 
-           parseValue() in parseArray() and parseObject()). Thus, we must 
+           readValue() in readArray() and readObject()). Thus, we must 
            manually manage the stack and simulate the gotos, and we do this in 
            the big while loop with nested switch statements. This interpretation
            should help reason about the loop; the outer switch is any point you
@@ -200,7 +200,7 @@ public class SubJson
         while (currRune != -1) {
             dispatch:
             switch (currState) {
-            case LBL_PARSE_VALUE:
+            case LBL_READ_VALUE:
                 currRune = peek(jsonSrc);
 
                 switch (currRune) {
@@ -214,7 +214,7 @@ public class SubJson
                     
                     // null
                 case 'n': 
-                    parseNull(jsonSrc);
+                    readNull(jsonSrc);
 
                     latestValue = bp.makeNull();
                     break; // Jump to cleanup code after inner switch.
@@ -222,7 +222,7 @@ public class SubJson
                     // true & false
                 case 't':
                 case 'f':
-                    latestValue = bp.makeBoolean(parseBoolean(jsonSrc));
+                    latestValue = bp.makeBoolean(readBoolean(jsonSrc));
                     break; // Jump to cleanup code after inner switch.
                     
                     // Number
@@ -237,23 +237,23 @@ public class SubJson
                 case '7':
                 case '8':
                 case '9':
-                    latestValue = bp.makeNumber(parseNumber(jsonSrc));
+                    latestValue = bp.makeNumber(readNumber(jsonSrc));
                     break; // Jump to cleanup code after inner switch
                     
                     // String
                 case '"':
-                    latestValue = bp.makeString(parseString(jsonSrc));
+                    latestValue = bp.makeString(readString(jsonSrc));
                     break; // Jump to cleanup code after inner switch
                     
                     // Array
                 case '[':
-                    currState = LBL_PARSE_ARRAY;
-                    break dispatch; // "Call" "parseArray()"
+                    currState = LBL_READ_ARRAY;
+                    break dispatch; // "Call" "readArray()"
                     
                     // Object
                 case '{':
-                    currState = LBL_PARSE_OBJECT;
-                    break dispatch; // "Call" "parseObject()"
+                    currState = LBL_READ_OBJECT;
+                    break dispatch; // "Call" "readObject()"
 
                 default:
                     throw new IllegalArgumentException("Encountered unexpected character '"
@@ -272,22 +272,22 @@ public class SubJson
                 } else {
                     Object valueStackTop = valueStack.peek();
                     if (bp.isArray(valueStackTop)) {
-                        // We had to parse a value while parsing an array
+                        // We had to read a value while parsing an array
                         bp.arrayAppend(valueStackTop, latestValue);
-                        currState = LBL_PA_PARSEDVALUE;
+                        currState = LBL_PA_HAVEREADVALUE;
                     } else if (bp.isObject(valueStackTop)) {
                         bp.objectInsert(valueStackTop, keyStack.pop(), latestValue);
-                        currState = LBL_PO_PARSEDKV;
+                        currState = LBL_PO_HAVEREADKV;
                     }
                     break dispatch;
                 }
                 // Can't fall through to here.
 
-                // "parseArray()" (see comment above)
-            case LBL_PARSE_ARRAY:
-                parseChar(jsonSrc, '[');
+                // "readArray()" (see comment above)
+            case LBL_READ_ARRAY:
+                readChar(jsonSrc, '[');
                 valueStack.push(bp.startArray());
-            case LBL_PA_STARTVALUE: // Note: Falls through from LBL_PARSE_ARRAY!
+            case LBL_PA_STARTVALUE: // Note: Falls through from LBL_READ_ARRAY!
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
 
@@ -296,55 +296,55 @@ public class SubJson
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an array.");
                 } else if (currRune != ']') {
-                    currState = LBL_PARSE_VALUE; // "Call" "parseValue()"
+                    currState = LBL_READ_VALUE; // "Call" "readValue()"
                     break dispatch;
                 }                     
                 // currRune == ']', so fall through to continue/finish array
-            case LBL_PA_PARSEDVALUE:         // ... which will know to return here from stack top.
+            case LBL_PA_HAVEREADVALUE:         // ... which will know to return here from stack top.
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
                 if (currRune == ',') {
-                    parseChar(jsonSrc, ',');
+                    readChar(jsonSrc, ',');
                     currState = LBL_PA_STARTVALUE;
                     break dispatch;
                 } else {
-                    parseChar(jsonSrc, ']');
+                    readChar(jsonSrc, ']');
                     latestValue = bp.finishArray(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
                 }
 
-                // "parseObject()" (see comment above)
-            case LBL_PARSE_OBJECT:
-                parseChar(jsonSrc, '{');
+                // "readObject()" (see comment above)
+            case LBL_READ_OBJECT:
+                readChar(jsonSrc, '{');
                 valueStack.push(bp.startObject());
-            case LBL_PO_STARTKV: // Note: Falls through from LBL_PARSE_OBJECT!
+            case LBL_PO_STARTKV: // Note: Falls through from LBL_READ_OBJECT!
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
 
                 // Need to check for '}' in case of empty object. If so,
-                // fall through to PARSEDKV to finish object.
+                // fall through to READDKV to finish object.
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an object.");
                 } else if (currRune != '}') {
-                    keyStack.push(bp.makeString(parseString(jsonSrc)));
+                    keyStack.push(bp.makeString(readString(jsonSrc)));
                     skipWhitespace(jsonSrc);
-                    parseChar(jsonSrc, ':');
+                    readChar(jsonSrc, ':');
                     skipWhitespace(jsonSrc);
-                    currState = LBL_PARSE_VALUE; // "Call" "parseValue()"
+                    currState = LBL_READ_VALUE; // "Call" "readValue()"
                     break dispatch;
                 }
                 // currRune == '}' so fall through to finish object
-            case LBL_PO_PARSEDKV:            // ... which will know to return here from stack top.
+            case LBL_PO_HAVEREADKV:            // ... which will know to return here from stack top.
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
                 if (currRune == ',') {
-                    parseChar(jsonSrc, ',');
+                    readChar(jsonSrc, ',');
                     currState = LBL_PO_STARTKV;
                     break dispatch;
                 } else {
-                    parseChar(jsonSrc, '}');
+                    readChar(jsonSrc, '}');
                     latestValue = bp.finishObject(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
@@ -383,7 +383,7 @@ public class SubJson
                     // There are characters below 0x20 that aren't valid whitespace
                     // but they are not valid in a JSON stream, so we simply
                     // assume that whatever will try to read something next (in
-                    // the main parse loop) will report the error if the next rune
+                    // the main read loop) will report the error if the next rune
                     // would cause an error, should reading need to continue.
                     return;
                 }
@@ -401,7 +401,7 @@ public class SubJson
       and the Reader will be on the next character after the one just read. 
       Otherwise, throws a descriptive error.
      */
-    private static void parseChar(Reader jsonSrc, char theChar) throws IOException
+    private static void readChar(Reader jsonSrc, char theChar) throws IOException
     {
         int currRune = jsonSrc.read();
         if (currRune == theChar) {
@@ -416,12 +416,12 @@ public class SubJson
     }
 
     /*
-      parseNull takes a Reader that is pointing at a JSON null literal and
+      readNull takes a Reader that is pointing at a JSON null literal and
       advances the Reader to the character after the end of the literal, 
       while checking that the null literal is correctly written and providing errors
       if not.
     */
-    private static void parseNull(Reader jsonSrc) throws IOException
+    private static void readNull(Reader jsonSrc) throws IOException
     {   
         // This loop only executes once, use it to simulate goto with a break.
         while (true) {
@@ -440,17 +440,17 @@ public class SubJson
             return;
         }
 
-        // If we got here, it is because we had to break due to a parse error.
+        // If we got here, it is because we had to break due to a read error.
         throw new IllegalArgumentException("Encountered invalid input while attempting to read the null literal.");
     }
 
     /*
-      parseBoolean takes an Reader that is pointing at a JSON boolean literal
+      readBoolean takes an Reader that is pointing at a JSON boolean literal
       and does two things:
       1) Returns the boolean value that literal represents (true or false)
       2) Advances the Reader to the character after the end of the literal.
     */
-    private static Boolean parseBoolean(Reader jsonSrc) throws IOException
+    private static Boolean readBoolean(Reader jsonSrc) throws IOException
     {
         int currRune = jsonSrc.read();
         switch (currRune) {
@@ -469,7 +469,7 @@ public class SubJson
                 return Boolean.TRUE;
             }
             
-            // If we got here, it is because we had to break due to a parse error.
+            // If we got here, it is because we had to break due to a read error.
             throw new IllegalArgumentException("Encountered invalid input while attempting to read the boolean literal 'true'.");
         case 'f':
             // This loop only executes once, use it to simulate goto with a break.
@@ -489,18 +489,18 @@ public class SubJson
                 return Boolean.FALSE;
             }
             
-            // If we got here, it is because we had to break due to a parse error.
+            // If we got here, it is because we had to break due to a read error.
             throw new IllegalArgumentException("Encountered invalid input while attempting to read the boolean literal 'false'.");
         default:
             // This code should never execute unless there is a bug; this function
             // should only be called if the next 4 or 5 characters in the Reader
             // will be one of the two boolean literals.
-            throw new IllegalArgumentException("Attempted to parse a boolean literal out of input that was not pointing at one.");
+            throw new IllegalArgumentException("Attempted to read a boolean literal out of input that was not pointing at one.");
         }
     }
 
     /* 
-       parseNumber takes an Reader that is pointing at a JSON number literal
+       readNumber takes an Reader that is pointing at a JSON number literal
        and does two things: 
        1) Returns the Number that literal represents
        2) Advances the Reader to the first non-number character in the JSON
@@ -508,7 +508,7 @@ public class SubJson
           after the number literal). Basically clips the number off the front of
           the stream.
     */
-    private static Number parseNumber(Reader jsonSrc) throws IOException
+    private static Number readNumber(Reader jsonSrc) throws IOException
     {
         StringBuilder sb = new StringBuilder();
         int currRune = peek(jsonSrc);
@@ -518,7 +518,7 @@ public class SubJson
         // finishing up code from various points. Note that every
         // call to read() must handle EOF with either a thrown
         // exception or a break from the main loop.
-        boolean sawDecimal = false; // Will use these to parse at the end.
+        boolean sawDecimal = false; // Will use these to read at the end.
         boolean sawExponent = false;
         while (true) {
             boolean sawNegation = currRune == '-' ? true : false;
@@ -534,7 +534,7 @@ public class SubJson
             // it is invalid JSON. JSON requires at least one digit before decimal,
             // exponent parts, and end-of-number.
             if (sawNegation && !isDigit(currRune)) { // Also handles EOF.
-                throw new NumberFormatException("While attempting to parse a negative number, the negative sign was not followed by a digit.");
+                throw new NumberFormatException("While attempting to read a negative number, the negative sign was not followed by a digit.");
             }
             
             // A JSON number can only have a single leading 0 digit when it
@@ -545,9 +545,9 @@ public class SubJson
             currRune = peek(jsonSrc);
             
             if (sawLeadingZero && isDigit(currRune)) {
-                throw new NumberFormatException("While attempting to parse a number, there was a leading zero not immediately followed by a decimal point or exponentiation.");
+                throw new NumberFormatException("While attempting to read a number, there was a leading zero not immediately followed by a decimal point or exponentiation.");
             } else if (currRune == -1) {
-                break; // EOF, but enough input to parse a number.
+                break; // EOF, but enough input to read a number.
             }
             
             // Copy as many digits as are present into the current string. Note that if
@@ -559,7 +559,7 @@ public class SubJson
                 currRune = peek(jsonSrc);
             }
             
-            if (currRune == -1) break; // EOF, but enough input to parse a number.
+            if (currRune == -1) break; // EOF, but enough input to read a number.
             
             // At this point, currRune has read a codepoint that is not the
             // unicode value for a digit. It may be a valid character for a number
@@ -574,7 +574,7 @@ public class SubJson
                 // We must read at least one digit before moving on.
                 // Also handles EOF.
                 if (!isDigit(currRune)) {
-                    throw new NumberFormatException("While attempting to parse a number, there was a decimal point not immediately followed by a digit.");
+                    throw new NumberFormatException("While attempting to read a number, there was a decimal point not immediately followed by a digit.");
                 }
                 
                 while (isDigit(currRune)) {
@@ -632,14 +632,14 @@ public class SubJson
     }
 
     /* 
-       parseString takes a Reader that is pointing at a JSON string literal
+       readString takes a Reader that is pointing at a JSON string literal
        and does two things: 
        1) Returns the String that literal represents
        2) Advances the Reader to the first character after the end of the 
           string in the JSON source. Basically clips the string off the front
           of the stream.
     */
-    private static String parseString(Reader jsonSrc) throws IOException
+    private static String readString(Reader jsonSrc) throws IOException
     {
         // There's a measurable performance benefit to building a
         // string out of chunks, instead of char by char, so we'll use
@@ -836,7 +836,7 @@ public class SubJson
 
         /*
           Here's the (pseudo-)code we wish we could write 
-          (see comment in parse() above):
+          (see comment in read() above):
 
           write(jsonVal):
               if (primitive(jsonVal)) writePrimitive(jsonVal);
@@ -867,7 +867,7 @@ public class SubJson
                   goto write_object_elt;
               out.append("}");
 
-          The code is a little different in flow compared to the parse
+          The code is a little different in flow compared to the read
           case because we must deal with the API provided by the
           Iterator interface here, instead of being in charge of the
           parsing right from the input.

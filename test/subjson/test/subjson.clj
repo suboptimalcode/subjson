@@ -28,7 +28,7 @@
                     #(UnsynchronizedStringReader. %)])
 
 ;;
-;; Parse utilities
+;; Read utilities
 ;;
 
 (deftest isDigit-test
@@ -130,33 +130,33 @@
 
 (def not-json-numbers ["00" "01" "001" "00.1" ".1" "1."])
 
-(def parseNumber (get-private-static-method "parseNumber"))
+(def readNumber (get-private-static-method "readNumber"))
 
 (deftest parse-test--numbers
   (doseq [make-rdr reader-makers]
     (doseq [[num-str num] json-numbers]
-      (is (= num (parseNumber (make-rdr num-str)))))
+      (is (= num (readNumber (make-rdr num-str)))))
     (doseq [not-num not-json-numbers]
       (is (thrown? Exception
-                   (parseNumber (make-rdr not-num)))))
+                   (readNumber (make-rdr not-num)))))
 
     ;; Check that it still works from main json parse
     (doseq [[num-str num] json-numbers]
-      (is (= num (SubJson/parse (make-rdr num-str)))))
+      (is (= num (SubJson/read (make-rdr num-str)))))
     (doseq [not-num not-json-numbers]
       (is (thrown? Exception
-                   (SubJson/parse (make-rdr not-num)))))
+                   (SubJson/read (make-rdr not-num)))))
 
     ;; Check that it still works from main json parse with leading/trailing ws
     (doseq [[num-str num] json-numbers]
-      (is (= num (SubJson/parse (make-rdr (str " \t"
-                                               num-str
-                                               "\r\n"))))))
+      (is (= num (SubJson/read (make-rdr (str " \t"
+                                              num-str
+                                              "\r\n"))))))
     (doseq [not-num not-json-numbers]
       (is (thrown? Exception
-                   (SubJson/parse (make-rdr (str " \t"
-                                                 not-num
-                                                 "\r\n"))))))))
+                   (SubJson/read (make-rdr (str " \t"
+                                                not-num
+                                                "\r\n"))))))))
 
 ;;
 ;; Parsing booleans
@@ -173,25 +173,25 @@
                    "False" "FALSE" "fAlse" "faLse" "falSe" "falsE" "f" "fa"
                    "fals" "null" "Roger"])
 
-(def parseBoolean (get-private-static-method "parseBoolean"))
+(def readBoolean (get-private-static-method "readBoolean"))
 
 (deftest parse-test--booleans
   (doseq [make-rdr reader-makers]
     (doseq [[bool-src bool-val] bools]
-      (is (= bool-val (parseBoolean (make-rdr bool-src)))))
+      (is (= bool-val (readBoolean (make-rdr bool-src)))))
     (doseq [not-bool not-booleans]
       (is (thrown? Exception
-                   (parseBoolean (make-rdr not-bool)))))
+                   (readBoolean (make-rdr not-bool)))))
 
     ;; Check that it still works from main json parse
     (doseq [[bool-src bool-val] bools]
-      (is (= bool-val (SubJson/parse (make-rdr bool-src)))))
+      (is (= bool-val (SubJson/read (make-rdr bool-src)))))
 
     ;; Check that it still works from main json parse with leading/trailing ws
     (doseq [[bool-src bool-val] bools]
-      (is (= bool-val (SubJson/parse (make-rdr (str " \t"
-                                                    bool-src
-                                                    "\r\n"))))))))
+      (is (= bool-val (SubJson/read (make-rdr (str " \t"
+                                                   bool-src
+                                                   "\r\n"))))))))
 
 ;;
 ;; Parsing null
@@ -205,24 +205,24 @@
 (def not-nulls ["Null" "NULL" "nUll" "nuLl" "nulL" "n" "nu" "nul" "true"
                 "Burt"])
 
-(def parseNull (get-private-static-method "parseNull"))
+(def readNull (get-private-static-method "readNull"))
 
 (deftest parse-test--null
   (doseq [make-rdr reader-makers]
     (doseq [[null-src next-chr] nulls]
       (let [lsr ^Reader (make-rdr null-src)]
-        (is (= (int next-chr) (do (parseNull lsr)
+        (is (= (int next-chr) (do (readNull lsr)
                                   (.read lsr))))))
     (doseq [not-null not-nulls]
-      (is (thrown? Exception (parseNull (make-rdr not-null)))))
+      (is (thrown? Exception (readNull (make-rdr not-null)))))
 
     ;; Check that it still works from the main json parse
     (doseq [[null-src next-chr] nulls]
-      (is (= nil (SubJson/parse (make-rdr null-src)))))
+      (is (= nil (SubJson/read (make-rdr null-src)))))
     (doseq [[null-src next-chr] nulls]
-      (is (= nil (SubJson/parse (make-rdr (str " \t"
-                                               null-src
-                                               "\r\n"))))))))
+      (is (= nil (SubJson/read (make-rdr (str " \t"
+                                              null-src
+                                              "\r\n"))))))))
 
 ;;
 ;; Parsing strings
@@ -244,22 +244,22 @@
 (def not-strings ["hi" "1923" "\"unclosed..." "\"\\u11\""
                   "\"\\ummff\"" "\"\\.notanescape\""])
 
-(def parseString (get-private-static-method "parseString"))
+(def readString (get-private-static-method "readString"))
 
 (deftest parse-test--string
   (doseq [make-rdr reader-makers]
     (doseq [[string-src string-value] strings]
-      (is (= string-value (parseString (make-rdr string-src)))))
+      (is (= string-value (readString (make-rdr string-src)))))
     (doseq [not-string not-strings]
-      (is (thrown? Exception (parseString (make-rdr not-string)))))
+      (is (thrown? Exception (readString (make-rdr not-string)))))
 
     ;; Check that it still works from the main json parse
     (doseq [[string-src string-value] strings]
-      (is (= string-value (SubJson/parse (make-rdr string-src)))))
+      (is (= string-value (SubJson/read (make-rdr string-src)))))
     (doseq [[string-src string-value] strings]
-      (is (= string-value (SubJson/parse (make-rdr (str " \t"
-                                                        string-src
-                                                        "\r\n"))))))))
+      (is (= string-value (SubJson/read (make-rdr (str " \t"
+                                                       string-src
+                                                       "\r\n"))))))))
 
 ;;
 ;; Parsing arrays
@@ -290,9 +290,9 @@
 (deftest parse-test--array
   (doseq [make-rdr reader-makers]
     (doseq [[arr-src arr] arrays]
-      (is (= arr (SubJson/parse (make-rdr arr-src)))))
+      (is (= arr (SubJson/read (make-rdr arr-src)))))
     (doseq [not-arr not-arrays]
-      (is (thrown? Exception (SubJson/parse (make-rdr not-arr)))))))
+      (is (thrown? Exception (SubJson/read (make-rdr not-arr)))))))
 
 ;;
 ;; Parsing objects
@@ -327,9 +327,9 @@
 (deftest parse-test--object
   (doseq [make-rdr reader-makers]
     (doseq [[obj-src obj] objects]
-      (is (= obj (SubJson/parse (make-rdr obj-src)))))
+      (is (= obj (SubJson/read (make-rdr obj-src)))))
     (doseq [not-obj not-objects]
-      (is (thrown? Exception (SubJson/parse (make-rdr not-obj)))))))
+      (is (thrown? Exception (SubJson/read (make-rdr not-obj)))))))
 
 ;;
 ;; "Full" examples
@@ -344,7 +344,7 @@
                          io/resource slurp)
             edn-src (-> (str "jsonorg_examples/" example-name ".edn")
                         io/resource slurp)]
-        (is (= (SubJson/parse (make-rdr json-src))
+        (is (= (SubJson/read (make-rdr json-src))
                (read-string edn-src))))))
   ;; Test String version
   (doseq [example-name jsonorg_examples]
@@ -352,7 +352,7 @@
                          io/resource slurp)
             edn-src (-> (str "jsonorg_examples/" example-name ".edn")
                         io/resource slurp)]
-        (is (= (SubJson/parse json-src)
+        (is (= (SubJson/read json-src)
                (read-string edn-src))))))
 
 ;;
@@ -405,18 +405,18 @@
                                 (.toString out)))))))
 
 ;; Objects have no defined order of keys, so to test printing of all
-;; other objects, we rely on a round trip of write/parse.
+;; other objects, we rely on a round trip of write/read.
 (deftest print-jsonorg_examples-test
   ;; Test String version
   (doseq [example-name jsonorg_examples
           pretty-print? [true false]]
       (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
                          io/resource slurp)
-            json-val (SubJson/parse json-src)]
+            json-val (SubJson/read json-src)]
         (is (= json-val
                (let [sw (StringWriter.)]
                  (SubJson/write sw json-val pretty-print?)
-                 (SubJson/parse (.toString sw))))))))
+                 (SubJson/read (.toString sw))))))))
 
 ;; Check the pretty printing by reading examples that are pretty-printed
 ;; the way we like and trying to print them out to get identical results.
@@ -429,7 +429,7 @@
   (doseq [example-name prettyprinting_examples]
       (let [json-src (-> (str "prettyprinting_examples/" example-name ".json")
                          io/resource slurp str/trim)
-            json-val (SubJson/parse json-src)]
+            json-val (SubJson/read json-src)]
         (is (= json-src
                (let [sw (StringWriter.)]
                  (SubJson/write sw json-val true)
@@ -444,7 +444,7 @@
   (doseq [example-name compactprinting_examples]
       (let [json-src (-> (str "compactprinting_examples/" example-name ".json")
                          io/resource slurp str/trim)
-            json-val (SubJson/parse json-src)]
+            json-val (SubJson/read json-src)]
         (is (= json-src
                (let [sw (StringWriter.)]
                  (SubJson/write sw json-val false)
