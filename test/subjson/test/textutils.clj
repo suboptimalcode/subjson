@@ -50,3 +50,16 @@
   (is (= true (TextUtils/isWhitespace (int \newline))))
   (doseq [i (range 16r21 16rFF)]
     (is (= false (TextUtils/isWhitespace i)))))
+
+(deftest needsEscape-test
+  (doseq [i (range 16r01 16rFF)]
+    (is (= (contains? #{\" \\ \backspace \formfeed \newline \return \tab}
+                      (char i))
+           (TextUtils/needsEscape (char i))))))
+
+(deftest escape-test
+  (doseq [i (range 16r01 16rFF)]
+    (is (= (or ({\" "\\\"", \\ "\\\\", \backspace "\\b", \formfeed "\\f",
+                 \newline "\\n", \return "\\r", \tab "\\t"} (char i))
+               (String/valueOf (char i)))
+           (TextUtils/escape (char i))))))
