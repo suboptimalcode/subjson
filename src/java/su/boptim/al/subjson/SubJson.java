@@ -52,6 +52,12 @@ public class SubJson
         return read(new UnsynchronizedStringReader(jsonSrc));
     }
 
+    public static Object read(String jsonSrc, BuildPolicy bp)
+        throws Exception, IOException
+    {
+        return read(new UnsynchronizedStringReader(jsonSrc), bp);
+    }
+
     public static Object read(Reader jsonSrc) 
         throws Exception, IOException
     {
