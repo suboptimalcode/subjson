@@ -3,7 +3,7 @@ package su.boptim.al.subjson;
 import java.util.HashMap;
 import java.lang.management.ManagementFactory;
 
-public class SectionTimer
+class SectionTimer
 {
     // Map of section names to the amount of time spent in those
     // sections so far.

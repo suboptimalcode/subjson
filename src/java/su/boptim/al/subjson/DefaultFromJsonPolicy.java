@@ -6,7 +6,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class DefaultFromJsonPolicy implements FromJsonPolicy
+class DefaultFromJsonPolicy implements FromJsonPolicy
 {
     // Arrays
     public boolean isArray(Object o)
