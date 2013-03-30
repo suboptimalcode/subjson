@@ -34,7 +34,7 @@
           pretty-print? [true false]]
       (let [json-src (-> (str "jsonorg_examples/" example-name ".json")
                          io/resource slurp)
-            json-val (subjson/read json-src)]
+            json-val (subjson/read-string json-src)]
         (is (= json-val
                (let [sw (StringWriter.)]
                  (subjson/write sw json-val pretty-print?)

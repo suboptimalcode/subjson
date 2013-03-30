@@ -104,8 +104,20 @@
   "Take a Writer and a Clojure value that represents a json value, and write
    the json representation of that value to the Writer. Clojure values that
    represent json objects are made from vectors, maps with string keys,
-   strings, numbers, booleans, and nil."
+   strings, numbers, booleans, and nil. Optional last argument can be set
+   to true (default) for pretty-printing, or false for compact printing."
   ([^Writer out json-value]
      (write out json-value true))
   ([^Writer out json-value pretty?]
-     (SubJson/write out json-value pretty?)))
+     (SubJson/write out json-value pretty? clojure-value-interpreter)))
+
+(defn write-string
+  "Return a String that contains the json encoding of the Clojure values
+   given as the first argument. Clojure values that represent json objects
+   are made from vectors, maps with string keys, strings, numbers, booleans,
+   and nil. Optional last argument can be set to true (default) for
+   pretty-printing, or false for compact printing."
+  ([json-value]
+     (write-string json-value true))
+  ([json-value ^Boolean pretty?]
+     (SubJson/writeToString json-value pretty? clojure-value-interpreter)))

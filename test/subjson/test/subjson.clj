@@ -367,7 +367,10 @@
         (is (= json-val
                (let [sw (StringWriter.)]
                  (SubJson/write sw json-val pretty-print?)
-                 (SubJson/read (.toString sw))))))))
+                 (SubJson/read (.toString sw)))))
+        (is (= json-val
+               (SubJson/read (SubJson/writeToString json-val
+                                                    pretty-print?)))))))
 
 ;; Check the pretty printing by reading examples that are pretty-printed
 ;; the way we like and trying to print them out to get identical results.
@@ -378,13 +381,15 @@
 
 (deftest prettyprinted_examples-test
   (doseq [example-name prettyprinting_examples]
-      (let [json-src (-> (str "prettyprinting_examples/" example-name ".json")
-                         io/resource slurp str/trim)
-            json-val (SubJson/read json-src)]
-        (is (= json-src
-               (let [sw (StringWriter.)]
-                 (SubJson/write sw json-val true)
-                 (.toString sw)))))))
+    (let [json-src (-> (str "prettyprinting_examples/" example-name ".json")
+                       io/resource slurp str/trim)
+          json-val (SubJson/read json-src)]
+      (is (= json-src
+             (let [sw (StringWriter.)]
+               (SubJson/write sw json-val true)
+               (.toString sw))))
+      (is (= json-src
+             (SubJson/writeToString json-val true))))))
 
 ;; Similarly for compact-printed examples.
 (def compactprinting_examples ["compact_printed1" "compact_printed2"
@@ -399,4 +404,6 @@
         (is (= json-src
                (let [sw (StringWriter.)]
                  (SubJson/write sw json-val false)
-                 (.toString sw)))))))
+                 (.toString sw))))
+        (is (= json-src
+               (SubJson/writeToString json-val false))))))

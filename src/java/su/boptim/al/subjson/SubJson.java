@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Iterator;
 import java.io.Reader;
 import java.io.Writer;
+import java.io.StringWriter;
 import java.io.IOException;
 
 public class SubJson
@@ -725,6 +726,28 @@ public class SubJson
             }
         }
     }
+
+    public static String writeToString(Object jsonValue)
+        throws IOException
+    {
+        return writeToString(jsonValue, true);
+    }
+
+    public static String writeToString(Object jsonValue, boolean pretty)
+        throws IOException
+    {
+        return writeToString(jsonValue, pretty, defaultVI);
+    }
+
+    public static String writeToString(Object jsonValue, boolean pretty,
+                                       ValueInterpreter vi)
+        throws IOException
+    {
+        StringWriter sw = new StringWriter();
+        write(sw, jsonValue, pretty);
+        return sw.toString();
+    }
+
 
     public static void write(Writer out, Object jsonValue)
         throws IOException
