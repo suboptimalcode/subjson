@@ -1,7 +1,7 @@
 (ns su.boptim.al.subjson
   (:refer-clojure :exclude [read read-string])
-  (:import [su.boptim.al.subjson SubJson BuildPolicy ValueInterpreter
-            ValueInterpreter$ValueType]
+  (:import [su.boptim.al.subjson SubJson FromJsonPolicy ToJsonPolicy
+            ToJsonPolicy$ValueType]
            [clojure.lang ITransientVector ITransientMap]
            [java.io Reader Writer]))
 
@@ -30,8 +30,8 @@
 ;; modifications to an identity. Also note that we need to check for
 ;; transient vectors/maps with a direct check against the class, since
 ;; vector? and map? will return false for transients.
-(deftype ClojureBuildPolicy []
-  BuildPolicy
+(deftype ClojureFromJsonPolicy []
+  FromJsonPolicy
   ;; Arrays
   (isArray [this box] (instance? ITransientVector
                                  (.box-get ^Box box)))
@@ -54,7 +54,7 @@
   (makeString [this s] s)
   (makeNumber [this n] n))
 
-(def ^BuildPolicy clojure-build-policy (ClojureBuildPolicy.))
+(def ^FromJsonPolicy clojure-fromjson-policy (ClojureFromJsonPolicy.))
 
 (defn read
   "Read a json value from the argument and return the value, made out of
@@ -63,29 +63,29 @@
    been closed, and the next character read will be the first character
    after the end of the json value."
   [^Reader json-src]
-  (SubJson/read json-src clojure-build-policy))
+  (SubJson/read json-src clojure-fromjson-policy))
 
 (defn read-string
   "Read a json value from the argument and return the value, made out of
    Clojure objects, that the json represents. The argument must be a
    String."
   [^String json-src]
-  (SubJson/read json-src clojure-build-policy))
+  (SubJson/read json-src clojure-fromjson-policy))
 
 ;;
 ;; Write
 ;;
 
-(deftype ClojureValueInterpreter []
-  ValueInterpreter
+(deftype ClojureToJsonPolicy []
+  ToJsonPolicy
   (categorize [this obj]
-    (cond (nil? obj) ValueInterpreter$ValueType/TYPE_NULL
-          (instance? Boolean obj) ValueInterpreter$ValueType/TYPE_BOOLEAN
-          (string? obj) ValueInterpreter$ValueType/TYPE_STRING
-          (integer? obj) ValueInterpreter$ValueType/TYPE_INTEGER
-          (float? obj) ValueInterpreter$ValueType/TYPE_REAL
-          (vector? obj) ValueInterpreter$ValueType/TYPE_ARRAY
-          (map? obj) ValueInterpreter$ValueType/TYPE_OBJECT
+    (cond (nil? obj) ToJsonPolicy$ValueType/TYPE_NULL
+          (instance? Boolean obj) ToJsonPolicy$ValueType/TYPE_BOOLEAN
+          (string? obj) ToJsonPolicy$ValueType/TYPE_STRING
+          (integer? obj) ToJsonPolicy$ValueType/TYPE_INTEGER
+          (float? obj) ToJsonPolicy$ValueType/TYPE_REAL
+          (vector? obj) ToJsonPolicy$ValueType/TYPE_ARRAY
+          (map? obj) ToJsonPolicy$ValueType/TYPE_OBJECT
           :else (throw (IllegalArgumentException.
                         (str "Could not categorize the given object" obj
                              "into a JSON value type.")))))
@@ -98,7 +98,7 @@
   (arrayIterator [this obj] (.iterator ^Iterable obj))
   (objectIterator [this obj] (.iterator ^Iterable obj)))
 
-(def ^ValueInterpreter clojure-value-interpreter (ClojureValueInterpreter.))
+(def ^ToJsonPolicy clojure-tojson-policy (ClojureToJsonPolicy.))
 
 (defn write
   "Take a Writer and a Clojure value that represents a json value, and write
@@ -109,7 +109,7 @@
   ([^Writer out json-value]
      (write out json-value true))
   ([^Writer out json-value pretty?]
-     (SubJson/write out json-value pretty? clojure-value-interpreter)))
+     (SubJson/write out json-value pretty? clojure-tojson-policy)))
 
 (defn write-string
   "Return a String that contains the json encoding of the Clojure values
@@ -120,4 +120,4 @@
   ([json-value]
      (write-string json-value true))
   ([json-value ^Boolean pretty?]
-     (SubJson/writeToString json-value pretty? clojure-value-interpreter)))
+     (SubJson/writeToString json-value pretty? clojure-tojson-policy)))

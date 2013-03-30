@@ -1,12 +1,12 @@
 package su.boptim.al.subjson;
 
-import su.boptim.al.subjson.BuildPolicy;
+import su.boptim.al.subjson.FromJsonPolicy;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class DefaultBuildPolicy implements BuildPolicy
+public class DefaultFromJsonPolicy implements FromJsonPolicy
 {
     // Arrays
     public boolean isArray(Object o)

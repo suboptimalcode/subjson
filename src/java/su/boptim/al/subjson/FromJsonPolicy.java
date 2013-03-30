@@ -1,6 +1,6 @@
 package su.boptim.al.subjson;
 
-public interface BuildPolicy
+public interface FromJsonPolicy
 {
     // Arrays
     public boolean isArray(Object o);

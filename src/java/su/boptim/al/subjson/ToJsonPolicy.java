@@ -3,7 +3,7 @@ package su.boptim.al.subjson;
 import java.util.Iterator;
 import java.util.Map;
 
-public interface ValueInterpreter
+public interface ToJsonPolicy
 {
     public enum ValueType {
         TYPE_NULL,

@@ -7,9 +7,9 @@ import java.util.Iterator;
 class PrintingStackFrame
 {
     Iterator<?> it;
-    ValueInterpreter.ValueType iteratorType;
+    ToJsonPolicy.ValueType iteratorType;
     
-    public PrintingStackFrame(Iterator<?> it, ValueInterpreter.ValueType iteratorType)
+    public PrintingStackFrame(Iterator<?> it, ToJsonPolicy.ValueType iteratorType)
     {
         this.it = it;
         this.iteratorType = iteratorType;

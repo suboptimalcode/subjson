@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class DefaultValueInterpreter implements ValueInterpreter
+public class DefaultToJsonPolicy implements ToJsonPolicy
 {
     public ValueType categorize(Object o)
     {

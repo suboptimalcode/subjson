@@ -29,13 +29,13 @@ public class SubJson
     private static final int LBL_PRINT_OBJECT_CONTINUE = 6;
     private static final int LBL_PRINT_OBJECT_FINISH = 7;
     
-    private static final BuildPolicy defaultBP = new DefaultBuildPolicy();
-    private static final ValueInterpreter defaultVI = new DefaultValueInterpreter();
+    private static final FromJsonPolicy defaultFromJP = new DefaultFromJsonPolicy();
+    private static final ToJsonPolicy defaultToJP = new DefaultToJsonPolicy();
 
-    /* 
-       Takes a Reader and returns what read() will return,
-       but without actually moving the stream forward. The Reader
-       must return true when markSupported() is called.
+    /*
+      Takes a Reader and returns what read() will return,
+      but without actually moving the stream forward. The Reader
+      must return true when markSupported() is called.
      */
     private static int peek(Reader r) throws IOException
     {
@@ -53,21 +53,21 @@ public class SubJson
         return read(new UnsynchronizedStringReader(jsonSrc));
     }
 
-    public static Object read(String jsonSrc, BuildPolicy bp)
+    public static Object read(String jsonSrc, FromJsonPolicy fjp)
         throws Exception, IOException
     {
-        return read(new UnsynchronizedStringReader(jsonSrc), bp);
+        return read(new UnsynchronizedStringReader(jsonSrc), fjp);
     }
 
     public static Object read(Reader jsonSrc) 
         throws Exception, IOException
     {
-        return read(jsonSrc, defaultBP);
+        return read(jsonSrc, defaultFromJP);
     }
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
     // and the Reader must return true when markSupported() is called.
-    public static Object read(Reader jsonSrc, BuildPolicy bp) 
+    public static Object read(Reader jsonSrc, FromJsonPolicy fjp) 
         throws Exception, IOException
     {
         ArrayDeque<Object> valueStack = new ArrayDeque<Object>();
@@ -150,13 +150,13 @@ public class SubJson
                 case 'n': 
                     readNull(jsonSrc);
 
-                    latestValue = bp.makeNull();
+                    latestValue = fjp.makeNull();
                     break; // Jump to cleanup code after inner switch.
                     
                     // true & false
                 case 't':
                 case 'f':
-                    latestValue = bp.makeBoolean(readBoolean(jsonSrc));
+                    latestValue = fjp.makeBoolean(readBoolean(jsonSrc));
                     break; // Jump to cleanup code after inner switch.
                     
                     // Number
@@ -171,12 +171,12 @@ public class SubJson
                 case '7':
                 case '8':
                 case '9':
-                    latestValue = bp.makeNumber(readNumber(jsonSrc));
+                    latestValue = fjp.makeNumber(readNumber(jsonSrc));
                     break; // Jump to cleanup code after inner switch
                     
                     // String
                 case '"':
-                    latestValue = bp.makeString(readString(jsonSrc));
+                    latestValue = fjp.makeString(readString(jsonSrc));
                     break; // Jump to cleanup code after inner switch
                     
                     // Array
@@ -205,12 +205,12 @@ public class SubJson
                     return latestValue;
                 } else {
                     Object valueStackTop = valueStack.peek();
-                    if (bp.isArray(valueStackTop)) {
+                    if (fjp.isArray(valueStackTop)) {
                         // We had to read a value while parsing an array
-                        bp.arrayAppend(valueStackTop, latestValue);
+                        fjp.arrayAppend(valueStackTop, latestValue);
                         currState = LBL_PA_HAVEREADVALUE;
-                    } else if (bp.isObject(valueStackTop)) {
-                        bp.objectInsert(valueStackTop, keyStack.pop(), latestValue);
+                    } else if (fjp.isObject(valueStackTop)) {
+                        fjp.objectInsert(valueStackTop, keyStack.pop(), latestValue);
                         currState = LBL_PO_HAVEREADKV;
                     }
                     break dispatch;
@@ -220,7 +220,7 @@ public class SubJson
                 // "readArray()" (see comment above)
             case LBL_READ_ARRAY:
                 readChar(jsonSrc, '[');
-                valueStack.push(bp.startArray());
+                valueStack.push(fjp.startArray());
             case LBL_PA_STARTVALUE: // Note: Falls through from LBL_READ_ARRAY!
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
@@ -243,7 +243,7 @@ public class SubJson
                     break dispatch;
                 } else {
                     readChar(jsonSrc, ']');
-                    latestValue = bp.finishArray(valueStack.pop());
+                    latestValue = fjp.finishArray(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
@@ -252,7 +252,7 @@ public class SubJson
                 // "readObject()" (see comment above)
             case LBL_READ_OBJECT:
                 readChar(jsonSrc, '{');
-                valueStack.push(bp.startObject());
+                valueStack.push(fjp.startObject());
             case LBL_PO_STARTKV: // Note: Falls through from LBL_READ_OBJECT!
                 skipWhitespace(jsonSrc);
                 currRune = peek(jsonSrc);
@@ -262,7 +262,7 @@ public class SubJson
                 if (currRune == -1) {
                     throw new IllegalArgumentException("Reached EOF while parsing an object.");
                 } else if (currRune != '}') {
-                    keyStack.push(bp.makeString(readString(jsonSrc)));
+                    keyStack.push(fjp.makeString(readString(jsonSrc)));
                     skipWhitespace(jsonSrc);
                     readChar(jsonSrc, ':');
                     skipWhitespace(jsonSrc);
@@ -279,7 +279,7 @@ public class SubJson
                     break dispatch;
                 } else {
                     readChar(jsonSrc, '}');
-                    latestValue = bp.finishObject(valueStack.pop());
+                    latestValue = fjp.finishObject(valueStack.pop());
                     // Now we need to check stack to figure out where to return to.
                     currState = LBL_ROUTE_VALUE; // "call" "route_value()"
                     break dispatch;
@@ -736,33 +736,32 @@ public class SubJson
     public static String writeToString(Object jsonValue, boolean pretty)
         throws IOException
     {
-        return writeToString(jsonValue, pretty, defaultVI);
+        return writeToString(jsonValue, pretty, defaultToJP);
     }
 
     public static String writeToString(Object jsonValue, boolean pretty,
-                                       ValueInterpreter vi)
+                                       ToJsonPolicy tjp)
         throws IOException
     {
         StringWriter sw = new StringWriter();
-        write(sw, jsonValue, pretty);
+        write(sw, jsonValue, pretty, tjp);
         return sw.toString();
     }
-
 
     public static void write(Writer out, Object jsonValue)
         throws IOException
     {
-        write(out, jsonValue, true, defaultVI);
+        write(out, jsonValue, true, defaultToJP);
     }
 
     public static void write(Writer out, Object jsonValue, boolean pretty)
         throws IOException
     {
-        write(out, jsonValue, pretty, defaultVI);
+        write(out, jsonValue, pretty, defaultToJP);
     }
 
     public static void write(Writer out, Object jsonValue, boolean pretty, 
-                             ValueInterpreter vi)
+                             ToJsonPolicy tjp)
         throws IOException
     {
         ArrayDeque<PrintingStackFrame> inProgressStack 
@@ -832,7 +831,7 @@ public class SubJson
             dispatch:
             switch (currState) {
             case LBL_PRINT_VALUE:
-                ValueInterpreter.ValueType currType = vi.categorize(currValue);
+                ToJsonPolicy.ValueType currType = tjp.categorize(currValue);
                 
                 switch (currType) {
                 case TYPE_NULL:
@@ -858,8 +857,8 @@ public class SubJson
                 case TYPE_ARRAY:
                     {
                         PrintingStackFrame psf = 
-                            new PrintingStackFrame(vi.arrayIterator(currValue),
-                                                   ValueInterpreter.ValueType.TYPE_ARRAY);
+                            new PrintingStackFrame(tjp.arrayIterator(currValue),
+                                                   ToJsonPolicy.ValueType.TYPE_ARRAY);
 
                         // Pretty printing has an exception for empty values (empty array 
                         // = "[]", no whitespace), so handle it specially here. Works
@@ -885,8 +884,8 @@ public class SubJson
                 case TYPE_OBJECT:
                     {
                         PrintingStackFrame psf =
-                            new PrintingStackFrame(vi.objectIterator(currValue),
-                                                   ValueInterpreter.ValueType.TYPE_OBJECT);
+                            new PrintingStackFrame(tjp.objectIterator(currValue),
+                                                   ToJsonPolicy.ValueType.TYPE_OBJECT);
 
                         // Pretty printing has an exception for empty object, so handle
                         // it specially here. Works fine for both pretty and compact styles.
@@ -917,10 +916,10 @@ public class SubJson
                     return;
                 } else {
                     PrintingStackFrame psf = inProgressStack.peek();
-                    if (psf.iteratorType == ValueInterpreter.ValueType.TYPE_ARRAY) {
+                    if (psf.iteratorType == ToJsonPolicy.ValueType.TYPE_ARRAY) {
                         currState = LBL_PRINT_ARRAY_CONTINUE;
                         break dispatch;
-                    } else if (psf.iteratorType == ValueInterpreter.ValueType.TYPE_OBJECT) {
+                    } else if (psf.iteratorType == ToJsonPolicy.ValueType.TYPE_OBJECT) {
                         currState = LBL_PRINT_OBJECT_CONTINUE;
                         break dispatch;
                     } else {
