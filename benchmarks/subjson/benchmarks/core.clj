@@ -2,9 +2,9 @@
   (:use perforate.core)
   (:require [clojure.java.io :as io]
             [cheshire.core :as cheshire]
-            [clojure.data.json :as cdjson])
+            [clojure.data.json :as cdjson]
+            [su.boptim.al.subjson :as subjson-clj])
   (:import [su.boptim.al.subjson SubJson UnsynchronizedStringReader]
-           [java.io StringReader BufferedReader]
            [com.fasterxml.jackson.databind ObjectMapper]))
 
 (set! *warn-on-reflection* true)
@@ -15,10 +15,17 @@
 
 (defcase* small-parse-test :subjson
   (fn []
+    [(let [json-src (-> "jsonorg_examples/menu.json"
+                        io/resource slurp)]
+       (fn [] (dotimes [_ reps]
+                (SubJson/read (UnsynchronizedStringReader. json-src)))))]))
+
+(defcase* small-parse-test :subjson-clojure
+  (fn []
     (let [json-src (-> "jsonorg_examples/menu.json"
                        io/resource slurp)]
       [(fn [] (dotimes [_ reps]
-                (SubJson/parse (UnsynchronizedStringReader. json-src))))])))
+                (subjson-clj/read-string json-src)))])))
 
 (defcase* small-parse-test :data.json
   (fn []
@@ -59,7 +66,14 @@
     [(let [json-src (-> "jsonorg_examples/web-app.json"
                         io/resource slurp)]
        (fn [] (dotimes [_ reps]
-                (SubJson/parse (UnsynchronizedStringReader. json-src)))))]))
+                (SubJson/read (UnsynchronizedStringReader. json-src)))))]))
+
+(defcase* large-parse-test :subjson-clojure
+  (fn []
+    [(let [json-src (-> "jsonorg_examples/web-app.json"
+                        io/resource slurp)]
+       (fn [] (dotimes [_ reps]
+                (subjson-clj/read-string json-src))))]))
 
 (defcase* large-parse-test :data.json
   (fn []

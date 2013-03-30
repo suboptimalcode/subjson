@@ -5,12 +5,17 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [criterium "0.3.2-SNAPSHOT"]]
-  :plugins [[perforate "0.3.1-SNAPSHOT"]
+  :plugins [[perforate "0.3.1"]
             [lein-javadoc "0.1.0"]]
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]
   :javadoc-opts {:package-names ["su.boptim.al.subjson"]}
+
+  ;; Need to get Leiningen to not run with the TieredCompilation level
+  ;; set to 1, which defeats many optimization and makes benchmark
+  ;; results unrealistic.
+  :jvm-opts ^:replace []
 
   :profiles {:test {:resource-paths ["resources" "test/resources"]
                     :java-source-paths ["benchmarks/subjson/java"]}
