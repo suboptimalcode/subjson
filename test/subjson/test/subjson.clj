@@ -326,7 +326,7 @@
                   "\f\n\r\t" "\"\\f\\n\\r\\t\""})
 
 (def writeString (get-private-static-method "writeString"
-                                            [Writer String]))
+                                            [Appendable String]))
 
 (deftest string-write-test
   (doseq [[string-value correct-output] strings-out]
@@ -402,8 +402,8 @@
                          io/resource slurp str/trim)
             json-val (SubJson/read json-src)]
         (is (= json-src
-               (let [sw (StringWriter.)]
-                 (SubJson/write sw json-val false)
-                 (.toString sw))))
+               (let [sb (StringBuilder.)]
+                 (SubJson/write sb json-val false)
+                 (.toString sb))))
         (is (= json-src
                (SubJson/writeToString json-val false))))))

@@ -4,8 +4,6 @@ import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Iterator;
 import java.io.Reader;
-import java.io.Writer;
-import java.io.StringWriter;
 import java.io.IOException;
 
 
@@ -15,7 +13,7 @@ import java.io.IOException;
    method takes a {@link Reader}, reads a json object from it, and
    returns it. There are also variants to take a String argument and
    provide an object that directs how the object is constructed in
-   memory. The write() method takes a {@link Writer} and writes the
+   memory. The write() method takes a {@link Appendable} and writes the
    json object to it, either pretty-printed or with minimal whitespace.
    This method also has variants that take an object to direct how
    in-memory objects are mapped to json values, as well as the
@@ -838,43 +836,43 @@ public class SubJson
                                        ToJsonPolicy tjp)
         throws IOException
     {
-        StringWriter sw = new StringWriter();
-        write(sw, jsonValue, pretty, tjp);
-        return sw.toString();
+        StringBuilder sb = new StringBuilder();
+        write(sb, jsonValue, pretty, tjp);
+        return sb.toString();
     }
 
     /**
-       Pretty-print the java object jsonValue to the {@link Writer} out, 
+       Pretty-print the java object jsonValue to the {@link Appendable} out, 
        using the default ToJsonPolicy.
 
-       @param out the Writer to pretty-print the value to
+       @param out the {@link Appendable} to pretty-print the value to
        @param jsonValue the value to pretty-print to json
      */
-    public static void write(Writer out, Object jsonValue)
+    public static void write(Appendable out, Object jsonValue)
         throws IOException
     {
         write(out, jsonValue, true, defaultToJP);
     }
 
     /**
-       Write the java object jsonValue to the {@link Writer} out, using
+       Write the java object jsonValue to the {@link Appendable} out, using
        the default ToJsonPolicy. If pretty is true, the output will
        be pretty-printed, and if it is false, the output will be printed
        in a compact style with minimal whitespace.
 
-       @param out the Writer to serialize the value to
+       @param out the {@link Appendable} to serialize the value to
        @param jsonValue the value to serialize to json
        @param pretty pass true to emit pretty-printed json, false for
        compact json
      */
-    public static void write(Writer out, Object jsonValue, boolean pretty)
+    public static void write(Appendable out, Object jsonValue, boolean pretty)
         throws IOException
     {
         write(out, jsonValue, pretty, defaultToJP);
     }
 
     /**
-       Writes the java object jsonValue to the {@link Writer} out according
+       Writes the java object jsonValue to the {@link Appendable} out according
        to tjp, a {@link ToJsonPolicy}. If pretty is true, the output will
        be pretty-printed, and if it is false, the output will be printed
        in a compact style with minimal whitespace.
@@ -885,7 +883,7 @@ public class SubJson
        compact json
        @param tjp a ToJsonPolicy to translate the java value to json values 
      */
-    public static void write(Writer out, Object jsonValue, boolean pretty, 
+    public static void write(Appendable out, Object jsonValue, boolean pretty, 
                              ToJsonPolicy tjp)
         throws IOException
     {
@@ -1139,7 +1137,7 @@ public class SubJson
         }
     }
 
-    private static void writeString(Writer out, String str)
+    private static void writeString(Appendable out, String str)
         throws IOException
     {
         int segStart = 0;
