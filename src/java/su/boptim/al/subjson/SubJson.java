@@ -8,6 +8,19 @@ import java.io.Writer;
 import java.io.StringWriter;
 import java.io.IOException;
 
+
+/**
+   This class is the main API to the JSON reader and writer. The main
+   entrypoints are the static methods read() and write(). The read()
+   method takes a {@link Reader}, reads a json object from it, and
+   returns it. There are also variants to take a String argument and
+   provide an object that directs how the object is constructed in
+   memory. The write() method takes a {@link Writer} and writes the
+   json object to it, either pretty-printed or with minimal whitespace.
+   This method also has variants that take an object to direct how
+   in-memory objects are mapped to json values, as well as the
+   writeToString() method for convenience.
+ */
 public class SubJson
 {
     // JUMP POINTS -- see big comment in read()
@@ -47,18 +60,55 @@ public class SubJson
 
     
     // Convenience function for Strings.
+    /**
+       Reads a json value from the jsonSrc argument, a {@link String},
+       and builds a corresponding java object according to the
+       default {@link FromJsonPolicy}. The parser will only read as
+       much input as it needs to read a single json value, so the
+       jsonSrc argument can contain any data after a valid json value.
+
+       @param jsonSrc a {@link String} to read a json value from
+       @return the in-memory java object it was directed to construct
+       by the {@link FromJsonPolicy}
+       @see #read(Reader, FromJsonPolicy)
+     */
     public static Object read(String jsonSrc)
         throws Exception, IOException
     {
         return read(new UnsynchronizedStringReader(jsonSrc));
     }
 
+    /**
+       Reads a json value from the jsonSrc argument, a {@link String},
+       and builds a corresponding java object according to the fjp
+       argument, {@link FromJsonPolicy}. The parser will only read as
+       much input as it needs to read a single json value, so the
+       jsonSrc argument can contain any data after a valid json value.
+
+       @param jsonSrc a {@link String} to read a json value from
+       @param fjp a {@link FromJsonPolicy} to use when mapping the json
+       values to in-memory java objects
+       @return the in-memory java object it was directed to construct
+       by the {@link FromJsonPolicy}
+       @see #read(Reader, FromJsonPolicy)
+     */
     public static Object read(String jsonSrc, FromJsonPolicy fjp)
         throws Exception, IOException
     {
         return read(new UnsynchronizedStringReader(jsonSrc), fjp);
     }
 
+    /**
+       Reads a json value from the jsonSrc argument, a {@link Reader}, and
+       builds a corresponding java object. This function is equivalent to
+       calling {@link #read(Reader, FromJsonPolicy)} with a 
+       DefaultFromJsonPolicy object. The {@link Reader} must return
+       true when markSupported() is called.
+
+       @param jsonSrc a {@link Reader} to read a json value from
+       @return the in-memory java object parsed
+       @see #read(Reader, FromJsonPolicy)
+     */
     public static Object read(Reader jsonSrc) 
         throws Exception, IOException
     {
@@ -67,6 +117,25 @@ public class SubJson
 
     // jsonSrc must be pointing at the first character of a valid JSON object,
     // and the Reader must return true when markSupported() is called.
+    /**
+       Reads a json value from the jsonSrc argument, a {@link Reader}, and 
+       builds a corresponding java object according to the fjp argument, a 
+       {@link FromJsonPolicy}. The parser will only read as much input as
+       it needs to read a single json value, leaving the {@link Reader} so
+       that the next character read() from it will be the first character after
+       the end of the json value. It will read the longest single json value
+       possible; given "12345", there are 5 valid json values you could read
+       off the front of that, but it will pick 12345. The {@link Reader} will
+       not be buffered or wrapped, so if performance is important, pick a
+       Reader that makes sense for your use case. The {@link Reader} must
+       return true when markSupported() is called.
+
+       @param jsonSrc a {@link Reader} to read a json value from
+       @param fjp a {@link FromJsonPolicy} to use when mapping the json
+       values to in-memory java objects
+       @return the in-memory java object it was directed to construct
+       by the {@link FromJsonPolicy}
+     */
     public static Object read(Reader jsonSrc, FromJsonPolicy fjp) 
         throws Exception, IOException
     {
@@ -727,18 +796,44 @@ public class SubJson
         }
     }
 
+    /**
+       Returns a String containing the pretty-printed serialization of jsonValue.
+
+       @param jsonValue the value to pretty-print to json
+     */
     public static String writeToString(Object jsonValue)
         throws IOException
     {
         return writeToString(jsonValue, true);
     }
 
+    /**
+       Returns a String containing the serialization of jsonValue, according
+       to the default {@link ToJsonPolicy}. If pretty is true, the output will
+       be pretty-printed, and if it is false, the output will be printed
+       in a compact style with minimal whitespace.
+
+       @param jsonValue the value to serialize to json
+       @param pretty pass true to emite pretty-printed json, false for
+       compact json
+     */
     public static String writeToString(Object jsonValue, boolean pretty)
         throws IOException
     {
         return writeToString(jsonValue, pretty, defaultToJP);
     }
 
+    /**
+       Returns a String containing the serialization of jsonValue, according
+       to tjp, a {@link ToJsonPolicy}. If pretty is true, the output will
+       be pretty-printed, and if it is false, the output will be printed
+       in a compact style with minimal whitespace.
+
+       @param jsonValue the value to serialize to json
+       @param pretty pass true to emit pretty-printed json, false for
+       compact json
+       @param tjp a ToJsonPolicy to translate the java value to json values
+     */
     public static String writeToString(Object jsonValue, boolean pretty,
                                        ToJsonPolicy tjp)
         throws IOException
@@ -748,18 +843,48 @@ public class SubJson
         return sw.toString();
     }
 
+    /**
+       Pretty-print the java object jsonValue to the {@link Writer} out, 
+       using the default ToJsonPolicy.
+
+       @param out the Writer to pretty-print the value to
+       @param jsonValue the value to pretty-print to json
+     */
     public static void write(Writer out, Object jsonValue)
         throws IOException
     {
         write(out, jsonValue, true, defaultToJP);
     }
 
+    /**
+       Write the java object jsonValue to the {@link Writer} out, using
+       the default ToJsonPolicy. If pretty is true, the output will
+       be pretty-printed, and if it is false, the output will be printed
+       in a compact style with minimal whitespace.
+
+       @param out the Writer to serialize the value to
+       @param jsonValue the value to serialize to json
+       @param pretty pass true to emit pretty-printed json, false for
+       compact json
+     */
     public static void write(Writer out, Object jsonValue, boolean pretty)
         throws IOException
     {
         write(out, jsonValue, pretty, defaultToJP);
     }
 
+    /**
+       Writes the java object jsonValue to the {@link Writer} out according
+       to tjp, a {@link ToJsonPolicy}. If pretty is true, the output will
+       be pretty-printed, and if it is false, the output will be printed
+       in a compact style with minimal whitespace.
+
+       @param out the writer to serialize the value to
+       @param jsonValue the value to serialize to json
+       @param pretty pass true to emit pretty-printed json, false for
+       compact json
+       @param tjp a ToJsonPolicy to translate the java value to json values 
+     */
     public static void write(Writer out, Object jsonValue, boolean pretty, 
                              ToJsonPolicy tjp)
         throws IOException
