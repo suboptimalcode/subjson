@@ -36,7 +36,7 @@ The library is not suited to certain perfectly valid use cases. Jackson is proba
 
 ```java
 import su.boptim.al.SubJson;
-SubJson.parse("[1,2,3,4,5]");
+SubJson.read("[1,2,3,4,5]");
 ```
 
 ### Clojure
