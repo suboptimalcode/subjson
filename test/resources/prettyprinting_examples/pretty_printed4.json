@@ -1,0 +1,19 @@
+{
+    "array": [
+        1,
+        "a",
+        true,
+        [
+            2,
+            "b",
+            false,
+            {
+                "c": [
+                    "deeply",
+                    "nested",
+                    "stuff"
+                ]
+            }
+        ]
+    ]
+}
