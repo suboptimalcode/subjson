@@ -1,10 +1,10 @@
-(defproject subjson "0.2.0-SNAPSHOT"
+(defproject su.boptim.al/subjson "0.2.0"
   :description "A simple JSON parser, easily bound to JVM languages."
-  :url "http://example.com/FIXME"
+  :url "http://github.com/suboptimal/subjson"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
-                 [criterium "0.3.2-SNAPSHOT"]]
+                 [criterium "0.4.0"]]
   :plugins [[perforate "0.3.1"]
             [lein-javadoc "0.1.0"]]
 
