@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [criterium "0.4.0"]]
   :plugins [[perforate "0.3.1"]
-            [lein-javadoc "0.1.0"]]
+            [lein-javadoc "0.1.1"]]
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]
