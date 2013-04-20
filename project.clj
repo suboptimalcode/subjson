@@ -1,4 +1,4 @@
-(defproject su.boptim.al/subjson "0.2.0"
+(defproject su.boptim.al/subjson "0.2.1"
   :description "A simple JSON parser, easily bound to JVM languages."
   :url "http://github.com/suboptimal/subjson"
   :license {:name "Eclipse Public License"
@@ -6,7 +6,7 @@
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [criterium "0.4.0"]]
   :plugins [[perforate "0.3.1"]
-            [lein-javadoc "0.1.0"]]
+            [lein-javadoc "0.1.1"]]
 
   :source-paths ["src" "src/clojure"]
   :java-source-paths ["src/java"]
