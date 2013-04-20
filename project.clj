@@ -1,4 +1,4 @@
-(defproject su.boptim.al/subjson "0.2.1-SNAPSHOT"
+(defproject su.boptim.al/subjson "0.2.1"
   :description "A simple JSON parser, easily bound to JVM languages."
   :url "http://github.com/suboptimal/subjson"
   :license {:name "Eclipse Public License"
